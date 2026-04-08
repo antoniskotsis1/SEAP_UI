@@ -170,7 +170,7 @@ export function DataTable<T>({
           style={{ ...style, display: "grid", gridTemplateColumns }}
           onClick={() => onRowClick?.(row)}
           className={cn(
-            "items-center border-b border-gray-100 text-sm",
+            "items-center border-b border-gray-100 text-sm min-h-[48px]",
             onRowClick && "cursor-pointer hover:bg-gray-50 active:bg-gray-100",
             "transition-colors"
           )}
@@ -179,7 +179,7 @@ export function DataTable<T>({
             <div
               key={col.key}
               role="cell"
-              className={cn("truncate px-4 text-gray-700", col.className)}
+              className={cn("truncate px-4 py-3 text-gray-700", col.className)}
               style={{
                 height: virtualized ? rowHeight : undefined,
                 display: "flex",
