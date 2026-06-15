@@ -4,6 +4,9 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -143,10 +146,10 @@ export function ProductionListPage() {
         title="Παραγωγή"
         description="Καταγραφή παραγωγής ανά φύτευση και έτος"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέα Καταγραφή
-          </button>
+          </Button>
         }
       />
 
@@ -156,10 +159,10 @@ export function ProductionListPage() {
           title="Δεν υπάρχουν καταγραφές"
           description="Ξεκινήστε καταγράφοντας παραγωγή."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Προσθήκη Καταγραφής
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -190,86 +193,59 @@ export function ProductionListPage() {
         title="Νέα Καταγραφή Παραγωγής"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Φύτευση <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.planting_id}
-              onChange={(e) => set("planting_id", e.target.value)}
-              placeholder="ID φύτευσης"
-            />
-          </div>
+          <TextField
+            label="Φύτευση"
+            isRequired
+            value={form.planting_id}
+            onChange={(v) => set("planting_id", v)}
+            placeholder="ID φύτευσης"
+          />
 
-          <div>
-            <label className="label">Έτος Συγκομιδής</label>
-            <input
-              className="input"
-              type="number"
-              value={form.harvest_year}
-              onChange={(e) => set("harvest_year", e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Έτος Συγκομιδής"
+            value={form.harvest_year}
+            onChange={(v) => set("harvest_year", v)}
+            inputProps={{ type: "number" }}
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">
-                Μεικτό βάρος (kg) <span className="text-red-500">*</span>
-              </label>
-              <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={form.quantity_kg}
-                onChange={(e) => set("quantity_kg", e.target.value)}
-                placeholder="π.χ. 1500"
-              />
-            </div>
-            <div>
-              <label className="label">Καθαρό βάρος (kg)</label>
-              <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={form.quantity_clean_kg}
-                onChange={(e) => set("quantity_clean_kg", e.target.value)}
-                placeholder="π.χ. 1350"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Τιμή / kg (€)</label>
-            <input
-              className="input"
-              type="number"
-              step="0.01"
-              value={form.price_per_kg}
-              onChange={(e) => set("price_per_kg", e.target.value)}
-              placeholder="π.χ. 0.85"
+            <TextField
+              label="Μεικτό βάρος (kg)"
+              isRequired
+              value={form.quantity_kg}
+              onChange={(v) => set("quantity_kg", v)}
+              placeholder="π.χ. 1500"
+              inputProps={{ type: "number", step: "0.1" }}
+            />
+            <TextField
+              label="Καθαρό βάρος (kg)"
+              value={form.quantity_clean_kg}
+              onChange={(v) => set("quantity_clean_kg", v)}
+              placeholder="π.χ. 1350"
+              inputProps={{ type: "number", step: "0.1" }}
             />
           </div>
 
+          <TextField
+            label="Τιμή / kg (€)"
+            value={form.price_per_kg}
+            onChange={(v) => set("price_per_kg", v)}
+            placeholder="π.χ. 0.85"
+            inputProps={{ type: "number", step: "0.01" }}
+          />
+
           <div>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
               <input
                 type="checkbox"
                 checked={form.is_estimate}
@@ -280,15 +256,11 @@ export function ProductionListPage() {
             </label>
           </div>
 
-          <div>
-            <label className="label">Σημειώσεις</label>
-            <textarea
-              className="input"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
-            />
-          </div>
+          <TextAreaField
+            label="Σημειώσεις"
+            value={form.notes}
+            onChange={(v) => set("notes", v)}
+          />
         </div>
       </Modal>
     </>

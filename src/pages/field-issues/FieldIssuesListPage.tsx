@@ -4,6 +4,10 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -23,7 +27,6 @@ const severityLabel: Record<IssueSeverity, string> = {
   MEDIUM: "Μέτρια",
   HIGH: "Υψηλή",
 };
-
 const statusLabel: Record<IssueStatus, string> = {
   OPEN: "Ανοιχτό",
   RESOLVED: "Επιλύθηκε",
@@ -186,10 +189,10 @@ export function FieldIssuesListPage() {
         title="Προβλήματα Χωραφιών"
         description="Αναφορά και παρακολούθηση προβλημάτων"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέα Αναφορά
-          </button>
+          </Button>
         }
       />
 
@@ -199,10 +202,10 @@ export function FieldIssuesListPage() {
           title="Δεν υπάρχουν αναφορές"
           description="Ξεκινήστε αναφέροντας ένα πρόβλημα."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Νέα Αναφορά
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -237,82 +240,57 @@ export function FieldIssuesListPage() {
         title="Νέα Αναφορά Προβλήματος"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Χωράφι <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.field_id}
-              onChange={(e) => set("field_id", e.target.value)}
-              placeholder="ID χωραφιού"
-            />
-          </div>
+          <TextField
+            label="Χωράφι"
+            isRequired
+            value={form.field_id}
+            onChange={(v) => set("field_id", v)}
+            placeholder="ID χωραφιού"
+          />
 
-          <div>
-            <label className="label">
-              Τίτλος <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.title}
-              onChange={(e) => set("title", e.target.value)}
-              placeholder="π.χ. Προσβολή από έντομα"
-            />
-          </div>
+          <TextField
+            label="Τίτλος"
+            isRequired
+            value={form.title}
+            onChange={(v) => set("title", v)}
+            placeholder="π.χ. Προσβολή από έντομα"
+          />
 
-          <div>
-            <label className="label">
-              Περιγραφή <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              className="input"
-              rows={3}
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Λεπτομερής περιγραφή του προβλήματος…"
-            />
-          </div>
+          <TextAreaField
+            label="Περιγραφή"
+            isRequired
+            value={form.description}
+            onChange={(v) => set("description", v)}
+            placeholder="Λεπτομερής περιγραφή του προβλήματος…"
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Σοβαρότητα</label>
-              <select
-                className="input"
-                value={form.severity}
-                onChange={(e) => set("severity", e.target.value)}
-              >
-                <option value="LOW">Χαμηλή</option>
-                <option value="MEDIUM">Μέτρια</option>
-                <option value="HIGH">Υψηλή</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Ημερομηνία Αναφοράς</label>
-              <input
-                className="input"
-                type="date"
-                value={form.reported_at}
-                onChange={(e) => set("reported_at", e.target.value)}
-              />
-            </div>
+            <SelectField
+              label="Σοβαρότητα"
+              value={form.severity}
+              onChange={(e) => set("severity", e.target.value)}
+            >
+              <option value="LOW">Χαμηλή</option>
+              <option value="MEDIUM">Μέτρια</option>
+              <option value="HIGH">Υψηλή</option>
+            </SelectField>
+
+            <TextField
+              label="Ημερομηνία Αναφοράς"
+              value={form.reported_at}
+              onChange={(v) => set("reported_at", v)}
+              inputProps={{ type: "date" }}
+            />
           </div>
         </div>
       </Modal>

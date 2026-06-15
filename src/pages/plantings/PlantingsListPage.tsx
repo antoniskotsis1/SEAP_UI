@@ -4,6 +4,9 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -141,10 +144,10 @@ export function PlantingsListPage() {
         title="Φυτεύσεις"
         description="Διαχείριση φυτεύσεων ανά χωράφι"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέα Φύτευση
-          </button>
+          </Button>
         }
       />
 
@@ -154,10 +157,10 @@ export function PlantingsListPage() {
           title="Δεν υπάρχουν φυτεύσεις"
           description="Ξεκινήστε καταχωρώντας μια φύτευση."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Προσθήκη Φύτευσης
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -192,81 +195,59 @@ export function PlantingsListPage() {
         title="Νέα Φύτευση"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Χωράφι <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.field_id}
-              onChange={(e) => set("field_id", e.target.value)}
-              placeholder="ID χωραφιού"
-            />
-          </div>
+          <TextField
+            label="Χωράφι"
+            isRequired
+            value={form.field_id}
+            onChange={(v) => set("field_id", v)}
+            placeholder="ID χωραφιού"
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Φύλο</label>
-              <select
-                className="input"
-                value={form.sex}
-                onChange={(e) => {
-                  set("sex", e.target.value);
-                  if (e.target.value === "MALE") set("variety", "");
-                }}
-              >
-                <option value="FEMALE">Θηλυκό</option>
-                <option value="MALE">Αρσενικό (επικονιαστής)</option>
-              </select>
-            </div>
+            <SelectField
+              label="Φύλο"
+              value={form.sex}
+              onChange={(e) => {
+                set("sex", e.target.value);
+                if (e.target.value === "MALE") set("variety", "");
+              }}
+            >
+              <option value="FEMALE">Θηλυκό</option>
+              <option value="MALE">Αρσενικό (επικονιαστής)</option>
+            </SelectField>
 
             {form.sex === "FEMALE" && (
-              <div>
-                <label className="label">
-                  Ποικιλία <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="input"
-                  value={form.variety}
-                  onChange={(e) => set("variety", e.target.value)}
-                >
-                  <option value="">—</option>
-                  <option value="V22">V22</option>
-                  <option value="V76">V76</option>
-                </select>
-              </div>
+              <SelectField
+                label="Ποικιλία"
+                required
+                value={form.variety}
+                onChange={(e) => set("variety", e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="V22">V22</option>
+                <option value="V76">V76</option>
+              </SelectField>
             )}
           </div>
 
-          <div>
-            <label className="label">
-              Αριθμός Δέντρων <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              type="number"
-              value={form.tree_count}
-              onChange={(e) => set("tree_count", e.target.value)}
-              placeholder="π.χ. 500"
-            />
-          </div>
+          <TextField
+            label="Αριθμός Δέντρων"
+            isRequired
+            value={form.tree_count}
+            onChange={(v) => set("tree_count", v)}
+            placeholder="π.χ. 500"
+            inputProps={{ type: "number" }}
+          />
         </div>
       </Modal>
     </>

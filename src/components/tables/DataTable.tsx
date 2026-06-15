@@ -19,18 +19,16 @@ import {
   FiLoader,
 } from "react-icons/fi";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/Button";
 import type { FilterOption, SortDirection } from "@/types";
 
 // ─── Column definition ──────────────────────────────────────────────────────
 
 export interface Column<T> {
-  /** Unique key — also used as sort_by param when sortable */
   key: string;
   header: string;
   render: (row: T) => ReactNode;
-  /** Allow sorting on this column. Default: false */
   sortable?: boolean;
-  /** Tailwind width class, e.g. "w-48" or "min-w-[200px]" */
   className?: string;
 }
 
@@ -42,27 +40,22 @@ interface DataTableProps<T> {
   keyExtractor: (row: T) => string;
   onRowClick?: (row: T) => void;
 
-  // State flags
   isLoading?: boolean;
   error?: string | null;
 
-  // Search
   search?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
 
-  // Filters
   filters?: FilterOption[];
   activeFilters?: Record<string, string>;
   onFilterChange?: (key: string, value: string) => void;
   onClearFilters?: () => void;
 
-  // Sort
   sortBy?: string | null;
   sortDir?: SortDirection;
   onSort?: (columnKey: string) => void;
 
-  // Pagination
   page?: number;
   pageSize?: number;
   total?: number;
@@ -70,14 +63,10 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
 
-  /** Enable react-window virtualization (recommended for 100+ rows). Default: false */
   virtualized?: boolean;
-  /** Row height in px when virtualized. Default: 44 */
   rowHeight?: number;
-  /** Max visible height in px when virtualized. Default: 600 */
   maxHeight?: number;
 
-  /** Extra element rendered at the right side of the toolbar */
   toolbarExtra?: ReactNode;
 }
 
@@ -153,12 +142,11 @@ export function DataTable<T>({
   const hasActiveFilters = Object.values(activeFilters).some(Boolean);
   const hasPagination = page !== undefined && totalPages !== undefined;
 
-  // Compute column grid template
   const gridTemplateColumns = columns
     .map(() => "minmax(120px, 1fr)")
     .join(" ");
 
-  // ── Render a single row (shared between virtualized & plain) ─────────
+  // ── Render a single row ──────────────────────────────────────────────
 
   const renderRowContent = useCallback(
     (row: T, style?: CSSProperties) => {
@@ -192,17 +180,10 @@ export function DataTable<T>({
         </div>
       );
     },
-    [
-      columns,
-      gridTemplateColumns,
-      keyExtractor,
-      onRowClick,
-      rowHeight,
-      virtualized,
-    ]
+    [columns, gridTemplateColumns, keyExtractor, onRowClick, rowHeight, virtualized]
   );
 
-  // ── Virtualized row renderer for react-window ────────────────────────
+  // ── Virtualized row renderer ─────────────────────────────────────────
 
   const VirtualRow = useCallback(
     ({ index, style }: ListChildComponentProps) => {
@@ -213,13 +194,9 @@ export function DataTable<T>({
     [data, renderRowContent]
   );
 
-  // ── Computed list height ──────────────────────────────────────────────
-
   const listHeight = virtualized
     ? Math.min(data.length * rowHeight, maxHeight)
     : undefined;
-
-  // ── Scroll to top when data changes ──────────────────────────────────
 
   const prevDataRef = useRef(data);
   if (prevDataRef.current !== data && listRef.current) {
@@ -241,29 +218,33 @@ export function DataTable<T>({
             <div className="relative min-w-[220px] flex-1 max-w-sm">
               <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
-                type="text"
+                type="search"
                 value={search ?? ""}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
                 className="input pl-9 pr-8"
               />
               {search && (
-                <button
-                  onClick={() => onSearchChange("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-gray-400 hover:text-gray-600"
+                <Button
+                  variant="ghost"
+                  onPress={() => onSearchChange("")}
+                  aria-label="Καθαρισμός αναζήτησης"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 !p-0.5 text-gray-400 hover:text-gray-600"
                 >
                   <FiX className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               )}
             </div>
           )}
 
-          {/* Filter dropdowns */}
+          {/* Filter dropdowns — native select is fine here */}
           {filters?.map((f) => (
             <select
               key={f.key}
               value={activeFilters[f.key] ?? ""}
               onChange={(e) => onFilterChange?.(f.key, e.target.value)}
+              aria-label={f.label}
               className="input w-auto min-w-[140px]"
             >
               <option value="">{f.label}</option>
@@ -277,16 +258,16 @@ export function DataTable<T>({
 
           {/* Clear filters */}
           {hasActiveFilters && onClearFilters && (
-            <button
-              onClick={onClearFilters}
-              className="btn-ghost text-xs text-gray-500"
+            <Button
+              variant="ghost"
+              onPress={onClearFilters}
+              className="text-xs text-gray-500"
             >
               <FiX className="h-3.5 w-3.5" />
               Καθαρισμός
-            </button>
+            </Button>
           )}
 
-          {/* Extra actions slot */}
           {toolbarExtra && <div className="ml-auto">{toolbarExtra}</div>}
         </div>
       )}
@@ -314,6 +295,13 @@ export function DataTable<T>({
               <div
                 key={col.key}
                 role="columnheader"
+                aria-sort={
+                  isSortable && isActive
+                    ? sortDir === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : undefined
+                }
                 onClick={() => isSortable && onSort(col.key)}
                 className={cn(
                   "flex items-center gap-1 px-4 text-xs font-semibold uppercase tracking-wider text-gray-500 select-none",
@@ -356,16 +344,13 @@ export function DataTable<T>({
             {VirtualRow}
           </FixedSizeList>
         ) : (
-          <div role="rowgroup">
-            {data.map((row) => renderRowContent(row))}
-          </div>
+          <div role="rowgroup">{data.map((row) => renderRowContent(row))}</div>
         )}
       </div>
 
       {/* ── Pagination footer ──────────────────────────────────────── */}
       {hasPagination && (
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-gray-200 px-4 py-3 text-sm text-gray-600">
-          {/* Left: total + page size */}
           <div className="flex items-center gap-3">
             <span>
               {total !== undefined
@@ -376,6 +361,7 @@ export function DataTable<T>({
               <select
                 value={pageSize}
                 onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                aria-label="Εγγραφές ανά σελίδα"
                 className="input w-auto py-1 text-xs"
               >
                 {PAGE_SIZE_OPTIONS.map((s) => (
@@ -387,43 +373,46 @@ export function DataTable<T>({
             )}
           </div>
 
-          {/* Right: page nav */}
-          <div className="flex items-center gap-1">
-            <button
-              disabled={page <= 1}
-              onClick={() => onPageChange?.(1)}
-              className="btn-ghost p-1.5 disabled:opacity-30"
-              title="Πρώτη σελίδα"
+          <div className="flex items-center gap-1" role="navigation" aria-label="Σελιδοποίηση">
+            <Button
+              variant="ghost"
+              isDisabled={page <= 1}
+              onPress={() => onPageChange?.(1)}
+              aria-label="Πρώτη σελίδα"
+              className="p-1.5"
             >
               <FiChevronsLeft className="h-4 w-4" />
-            </button>
-            <button
-              disabled={page <= 1}
-              onClick={() => onPageChange?.(page - 1)}
-              className="btn-ghost p-1.5 disabled:opacity-30"
-              title="Προηγούμενη"
+            </Button>
+            <Button
+              variant="ghost"
+              isDisabled={page <= 1}
+              onPress={() => onPageChange?.(page - 1)}
+              aria-label="Προηγούμενη σελίδα"
+              className="p-1.5"
             >
               <FiChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="px-2 text-xs tabular-nums">
+            </Button>
+            <span className="px-2 text-xs tabular-nums" aria-live="polite">
               {page} / {totalPages}
             </span>
-            <button
-              disabled={page >= totalPages!}
-              onClick={() => onPageChange?.(page + 1)}
-              className="btn-ghost p-1.5 disabled:opacity-30"
-              title="Επόμενη"
+            <Button
+              variant="ghost"
+              isDisabled={page >= totalPages!}
+              onPress={() => onPageChange?.(page + 1)}
+              aria-label="Επόμενη σελίδα"
+              className="p-1.5"
             >
               <FiChevronRight className="h-4 w-4" />
-            </button>
-            <button
-              disabled={page >= totalPages!}
-              onClick={() => onPageChange?.(totalPages!)}
-              className="btn-ghost p-1.5 disabled:opacity-30"
-              title="Τελευταία σελίδα"
+            </Button>
+            <Button
+              variant="ghost"
+              isDisabled={page >= totalPages!}
+              onPress={() => onPageChange?.(totalPages!)}
+              aria-label="Τελευταία σελίδα"
+              className="p-1.5"
             >
               <FiChevronsRight className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
       )}

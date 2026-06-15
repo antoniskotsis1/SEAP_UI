@@ -4,6 +4,9 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -113,10 +116,10 @@ export function FieldPhotosListPage() {
         title="Φωτογραφίες Χωραφιών"
         description="Φωτογραφική τεκμηρίωση χωραφιών"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Ανέβασμα Φωτογραφίας
-          </button>
+          </Button>
         }
       />
 
@@ -126,10 +129,10 @@ export function FieldPhotosListPage() {
           title="Δεν υπάρχουν φωτογραφίες"
           description="Ξεκινήστε ανεβάζοντας φωτογραφίες."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Ανέβασμα Φωτογραφίας
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -160,66 +163,45 @@ export function FieldPhotosListPage() {
         title="Ανέβασμα Φωτογραφίας"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Προσθήκη"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Χωράφι <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.field_id}
-              onChange={(e) => set("field_id", e.target.value)}
-              placeholder="ID χωραφιού"
-            />
-          </div>
+          <TextField
+            label="Χωράφι"
+            isRequired
+            value={form.field_id}
+            onChange={(v) => set("field_id", v)}
+            placeholder="ID χωραφιού"
+          />
 
-          <div>
-            <label className="label">
-              URL Φωτογραφίας <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.url}
-              onChange={(e) => set("url", e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
+          <TextField
+            label="URL Φωτογραφίας"
+            isRequired
+            value={form.url}
+            onChange={(v) => set("url", v)}
+            placeholder="https://..."
+            inputProps={{ type: "url" }}
+          />
 
-          <div>
-            <label className="label">Ημερομηνία Λήψης</label>
-            <input
-              className="input"
-              type="date"
-              value={form.taken_at}
-              onChange={(e) => set("taken_at", e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Ημερομηνία Λήψης"
+            value={form.taken_at}
+            onChange={(v) => set("taken_at", v)}
+            inputProps={{ type: "date" }}
+          />
 
-          <div>
-            <label className="label">Σημειώσεις</label>
-            <textarea
-              className="input"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
-            />
-          </div>
+          <TextAreaField
+            label="Σημειώσεις"
+            value={form.notes}
+            onChange={(v) => set("notes", v)}
+          />
         </div>
       </Modal>
     </>
