@@ -4,13 +4,16 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatNumber, formatDate } from "@/lib/utils";
 import type { Field, PlantingMethod, TrainingShape } from "@/types";
 
-// ─── Column definitions ─────────────────────────────────────────────────────
+// ─── Labels ─────────────────────────────────────────────────────────────────
 
 const methodLabel: Record<PlantingMethod, string> = {
   PLANTING: "Φύτευση",
@@ -21,6 +24,8 @@ const shapeLabel: Record<TrainingShape, string> = {
   UMBRELLA: "Ομπρέλα",
   OTHER: "Άλλο",
 };
+
+// ─── Column definitions ─────────────────────────────────────────────────────
 
 const columns: Column<Field>[] = [
   {
@@ -157,10 +162,10 @@ export function FieldsListPage() {
         title="Χωράφια"
         description="Διαχείριση χωραφιών και τοποθεσιών"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέο Χωράφι
-          </button>
+          </Button>
         }
       />
 
@@ -170,10 +175,10 @@ export function FieldsListPage() {
           title="Δεν υπάρχουν χωράφια"
           description="Ξεκινήστε προσθέτοντας το πρώτο χωράφι."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Προσθήκη Χωραφιού
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -204,78 +209,53 @@ export function FieldsListPage() {
         title="Νέο Χωράφι"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Παραγωγός <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.business_entity_id}
-              onChange={(e) => set("business_entity_id", e.target.value)}
-              placeholder="ID παραγωγού"
-            />
-          </div>
+          <TextField
+            label="Παραγωγός"
+            isRequired
+            value={form.business_entity_id}
+            onChange={(v) => set("business_entity_id", v)}
+            placeholder="ID παραγωγού"
+          />
 
-          <div>
-            <label className="label">
-              Τοποθεσία <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.location_name}
-              onChange={(e) => set("location_name", e.target.value)}
-              placeholder="π.χ. Χωράφι Αμαλιάδας"
-            />
-          </div>
+          <TextField
+            label="Τοποθεσία"
+            isRequired
+            value={form.location_name}
+            onChange={(v) => set("location_name", v)}
+            placeholder="π.χ. Χωράφι Αμαλιάδας"
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Στρέμματα</label>
-              <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={form.stremmata}
-                onChange={(e) => set("stremmata", e.target.value)}
-                placeholder="π.χ. 12.5"
-              />
-            </div>
-            <div>
-              <label className="label">Αρ. Ανάλυσης</label>
-              <input
-                className="input"
-                value={form.analysis_number}
-                onChange={(e) => set("analysis_number", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">GPS Συντεταγμένες</label>
-            <input
-              className="input"
-              value={form.gps_coordinates}
-              onChange={(e) => set("gps_coordinates", e.target.value)}
-              placeholder="π.χ. 37.7950, 21.3700"
+            <TextField
+              label="Στρέμματα"
+              value={form.stremmata}
+              onChange={(v) => set("stremmata", v)}
+              placeholder="π.χ. 12.5"
+              inputProps={{ type: "number", step: "0.1" }}
+            />
+            <TextField
+              label="Αρ. Ανάλυσης"
+              value={form.analysis_number}
+              onChange={(v) => set("analysis_number", v)}
             />
           </div>
+
+          <TextField
+            label="GPS Συντεταγμένες"
+            value={form.gps_coordinates}
+            onChange={(v) => set("gps_coordinates", v)}
+            placeholder="π.χ. 37.7950, 21.3700"
+          />
 
           <hr className="border-gray-200" />
           <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -283,84 +263,61 @@ export function FieldsListPage() {
           </p>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Έτος Φύτευσης</label>
-              <input
-                className="input"
-                type="number"
-                value={form.planting_year}
-                onChange={(e) => set("planting_year", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Μέθοδος</label>
-              <select
-                className="input"
-                value={form.planting_method}
-                onChange={(e) => set("planting_method", e.target.value)}
-              >
-                <option value="">—</option>
-                <option value="PLANTING">Φύτευση</option>
-                <option value="GRAFTING">Εμβολιασμός</option>
-              </select>
-            </div>
+            <TextField
+              label="Έτος Φύτευσης"
+              value={form.planting_year}
+              onChange={(v) => set("planting_year", v)}
+              inputProps={{ type: "number" }}
+            />
+            <SelectField
+              label="Μέθοδος"
+              value={form.planting_method}
+              onChange={(e) => set("planting_method", e.target.value)}
+            >
+              <option value="">—</option>
+              <option value="PLANTING">Φύτευση</option>
+              <option value="GRAFTING">Εμβολιασμός</option>
+            </SelectField>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Σχήμα Διαμόρφωσης</label>
-              <select
-                className="input"
-                value={form.training_shape}
-                onChange={(e) => set("training_shape", e.target.value)}
-              >
-                <option value="">—</option>
-                <option value="FISHBONE">Ψαροκόκαλο</option>
-                <option value="UMBRELLA">Ομπρέλα</option>
-                <option value="OTHER">Άλλο</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Υποκείμενο</label>
-              <input
-                className="input"
-                value={form.rootstock}
-                onChange={(e) => set("rootstock", e.target.value)}
-                placeholder="π.χ. HAYWARD, BOUNTY"
-              />
-            </div>
+            <SelectField
+              label="Σχήμα Διαμόρφωσης"
+              value={form.training_shape}
+              onChange={(e) => set("training_shape", e.target.value)}
+            >
+              <option value="">—</option>
+              <option value="FISHBONE">Ψαροκόκαλο</option>
+              <option value="UMBRELLA">Ομπρέλα</option>
+              <option value="OTHER">Άλλο</option>
+            </SelectField>
+            <TextField
+              label="Υποκείμενο"
+              value={form.rootstock}
+              onChange={(v) => set("rootstock", v)}
+              placeholder="π.χ. HAYWARD, BOUNTY"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="label">Αποστάσεις</label>
-              <input
-                className="input"
-                value={form.spacing}
-                onChange={(e) => set("spacing", e.target.value)}
-                placeholder="π.χ. 5Χ3"
-              />
-            </div>
-            <div>
-              <label className="label">Μήκος (m)</label>
-              <input
-                className="input"
-                type="number"
-                step="0.01"
-                value={form.length_m}
-                onChange={(e) => set("length_m", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Πλάτος (m)</label>
-              <input
-                className="input"
-                type="number"
-                step="0.01"
-                value={form.width_m}
-                onChange={(e) => set("width_m", e.target.value)}
-              />
-            </div>
+            <TextField
+              label="Αποστάσεις"
+              value={form.spacing}
+              onChange={(v) => set("spacing", v)}
+              placeholder="π.χ. 5Χ3"
+            />
+            <TextField
+              label="Μήκος (m)"
+              value={form.length_m}
+              onChange={(v) => set("length_m", v)}
+              inputProps={{ type: "number", step: "0.01" }}
+            />
+            <TextField
+              label="Πλάτος (m)"
+              value={form.width_m}
+              onChange={(v) => set("width_m", v)}
+              inputProps={{ type: "number", step: "0.01" }}
+            />
           </div>
         </div>
       </Modal>

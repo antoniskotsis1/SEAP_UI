@@ -4,6 +4,10 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -23,7 +27,6 @@ const typeLabel: Record<TransactionType, string> = {
   DEBT: "Οφειλή",
   OFFSET: "Συμψηφισμός",
 };
-
 const invoiceLabel: Record<InvoiceStatus, string> = {
   ISSUED: "Εκδόθηκε",
   NOT_ISSUED: "Δεν εκδόθηκε",
@@ -206,10 +209,10 @@ export function FinancialsListPage() {
         title="Οικονομικά"
         description="Πληρωμές, οφειλές και τιμολόγια"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέα Συναλλαγή
-          </button>
+          </Button>
         }
       />
 
@@ -219,10 +222,10 @@ export function FinancialsListPage() {
           title="Δεν υπάρχουν συναλλαγές"
           description="Ξεκινήστε καταχωρώντας μια συναλλαγή."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Προσθήκη Συναλλαγής
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -257,159 +260,113 @@ export function FinancialsListPage() {
         title="Νέα Συναλλαγή"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Παραγωγός <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.business_entity_id}
-              onChange={(e) => set("business_entity_id", e.target.value)}
-              placeholder="ID παραγωγού"
-            />
-          </div>
+          <TextField
+            label="Παραγωγός"
+            isRequired
+            value={form.business_entity_id}
+            onChange={(v) => set("business_entity_id", v)}
+            placeholder="ID παραγωγού"
+          />
 
-          <div>
-            <label className="label">Χωράφι (προαιρετικό)</label>
-            <input
-              className="input"
-              value={form.field_id}
-              onChange={(e) => set("field_id", e.target.value)}
-              placeholder="ID χωραφιού"
+          <TextField
+            label="Χωράφι (προαιρετικό)"
+            value={form.field_id}
+            onChange={(v) => set("field_id", v)}
+            placeholder="ID χωραφιού"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <SelectField
+              label="Τύπος"
+              value={form.type}
+              onChange={(e) => set("type", e.target.value)}
+            >
+              <option value="PAYMENT">Πληρωμή</option>
+              <option value="DEBT">Οφειλή</option>
+              <option value="OFFSET">Συμψηφισμός</option>
+            </SelectField>
+
+            <TextField
+              label="Έτος"
+              value={form.year}
+              onChange={(v) => set("year", v)}
+              inputProps={{ type: "number" }}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Τύπος</label>
-              <select
-                className="input"
-                value={form.type}
-                onChange={(e) => set("type", e.target.value)}
-              >
-                <option value="PAYMENT">Πληρωμή</option>
-                <option value="DEBT">Οφειλή</option>
-                <option value="OFFSET">Συμψηφισμός</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Έτος</label>
-              <input
-                className="input"
-                type="number"
-                value={form.year}
-                onChange={(e) => set("year", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">
-                Ποσό (€) <span className="text-red-500">*</span>
-              </label>
-              <input
-                className="input"
-                type="number"
-                step="0.01"
-                value={form.amount}
-                onChange={(e) => set("amount", e.target.value)}
-                placeholder="π.χ. 1500.00"
-              />
-            </div>
-            <div>
-              <label className="label">Ακατέργαστο ποσό</label>
-              <input
-                className="input"
-                value={form.raw_amount}
-                onChange={(e) => set("raw_amount", e.target.value)}
-                placeholder="π.χ. 1200+288"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Στρέμματα</label>
-              <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={form.stremmata_covered}
-                onChange={(e) => set("stremmata_covered", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Ημερομηνία</label>
-              <input
-                className="input"
-                type="date"
-                value={form.transaction_date}
-                onChange={(e) => set("transaction_date", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Κατάσταση Τιμολογίου</label>
-              <select
-                className="input"
-                value={form.invoice_status}
-                onChange={(e) => set("invoice_status", e.target.value)}
-              >
-                <option value="NOT_ISSUED">Δεν εκδόθηκε</option>
-                <option value="ISSUED">Εκδόθηκε</option>
-                <option value="PARTIAL">Μερική</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Αρ. / Αναφορά Τιμολογίου</label>
-              <input
-                className="input"
-                value={form.invoice_reference}
-                onChange={(e) => set("invoice_reference", e.target.value)}
-                placeholder="π.χ. ΤΙΜ 1.488"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Σημείωση ΦΠΑ</label>
-            <input
-              className="input"
-              value={form.vat_note}
-              onChange={(e) => set("vat_note", e.target.value)}
-              placeholder="π.χ. δεν έβαλε ΦΠΑ"
+            <TextField
+              label="Ποσό (€)"
+              isRequired
+              value={form.amount}
+              onChange={(v) => set("amount", v)}
+              placeholder="π.χ. 1500.00"
+              inputProps={{ type: "number", step: "0.01" }}
+            />
+            <TextField
+              label="Ακατέργαστο ποσό"
+              value={form.raw_amount}
+              onChange={(v) => set("raw_amount", v)}
+              placeholder="π.χ. 1200+288"
             />
           </div>
 
-          <div>
-            <label className="label">Σημειώσεις</label>
-            <textarea
-              className="input"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Στρέμματα"
+              value={form.stremmata_covered}
+              onChange={(v) => set("stremmata_covered", v)}
+              inputProps={{ type: "number", step: "0.1" }}
+            />
+            <TextField
+              label="Ημερομηνία"
+              value={form.transaction_date}
+              onChange={(v) => set("transaction_date", v)}
+              inputProps={{ type: "date" }}
             />
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <SelectField
+              label="Κατάσταση Τιμολογίου"
+              value={form.invoice_status}
+              onChange={(e) => set("invoice_status", e.target.value)}
+            >
+              <option value="NOT_ISSUED">Δεν εκδόθηκε</option>
+              <option value="ISSUED">Εκδόθηκε</option>
+              <option value="PARTIAL">Μερική</option>
+            </SelectField>
+
+            <TextField
+              label="Αρ. / Αναφορά Τιμολογίου"
+              value={form.invoice_reference}
+              onChange={(v) => set("invoice_reference", v)}
+              placeholder="π.χ. ΤΙΜ 1.488"
+            />
+          </div>
+
+          <TextField
+            label="Σημείωση ΦΠΑ"
+            value={form.vat_note}
+            onChange={(v) => set("vat_note", v)}
+            placeholder="π.χ. δεν έβαλε ΦΠΑ"
+          />
+
+          <TextAreaField
+            label="Σημειώσεις"
+            value={form.notes}
+            onChange={(v) => set("notes", v)}
+          />
         </div>
       </Modal>
     </>

@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
-import type {
-  PaginatedResponse,
-  SortDirection,
-  TableQueryParams,
-} from "@/types";
+import type { SortDirection, TableQueryParams } from "@/types";
 
 interface UseTableQueryOptions {
   endpoint: string;

@@ -4,6 +4,10 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { TextField } from "@/components/ui/TextField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
@@ -155,10 +159,10 @@ export function BusinessEntitiesListPage() {
         title="Παραγωγοί"
         description="Διαχείριση παραγωγών και επιχειρήσεων"
         actions={
-          <button className="btn-primary" onClick={openModal}>
+          <Button onPress={openModal}>
             <FiPlus className="h-4 w-4" />
             Νέος Παραγωγός
-          </button>
+          </Button>
         }
       />
 
@@ -168,10 +172,10 @@ export function BusinessEntitiesListPage() {
           title="Δεν υπάρχουν παραγωγοί"
           description="Ξεκινήστε προσθέτοντας τον πρώτο παραγωγό."
           action={
-            <button className="btn-primary" onClick={openModal}>
+            <Button onPress={openModal}>
               <FiPlus className="h-4 w-4" />
               Προσθήκη Παραγωγού
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -201,127 +205,92 @@ export function BusinessEntitiesListPage() {
         />
       )}
 
-      {/* ── Create modal ──────────────────────────────────────────── */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Νέος Παραγωγός"
         footer={
           <>
-            <button
-              className="btn-secondary"
-              onClick={() => setModalOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setModalOpen(false)}>
               Ακύρωση
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleSubmit}
-              disabled={saving}
-            >
+            </Button>
+            <Button onPress={handleSubmit} isDisabled={saving}>
               {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </button>
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
-          <div>
-            <label className="label">
-              Όνομα <span className="text-red-500">*</span>
-            </label>
-            <input
-              className="input"
-              value={form.display_name}
-              onChange={(e) => set("display_name", e.target.value)}
-              placeholder="π.χ. Γιώργος Παπαδόπουλος"
-            />
+          <TextField
+            label="Όνομα"
+            isRequired
+            value={form.display_name}
+            onChange={(v) => set("display_name", v)}
+            placeholder="π.χ. Γιώργος Παπαδόπουλος"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <SelectField
+              label="Τύπος"
+              value={form.type}
+              onChange={(e) => set("type", e.target.value)}
+            >
+              <option value="INDIVIDUAL">Ιδιώτης</option>
+              <option value="BUSINESS">Επιχείρηση</option>
+            </SelectField>
+
+            <SelectField
+              label="Κατάσταση"
+              value={form.status}
+              onChange={(e) => set("status", e.target.value)}
+            >
+              <option value="LEAD">Lead</option>
+              <option value="ACTIVE">Ενεργός</option>
+              <option value="INACTIVE">Ανενεργός</option>
+            </SelectField>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Τύπος</label>
-              <select
-                className="input"
-                value={form.type}
-                onChange={(e) => set("type", e.target.value)}
-              >
-                <option value="INDIVIDUAL">Ιδιώτης</option>
-                <option value="BUSINESS">Επιχείρηση</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Κατάσταση</label>
-              <select
-                className="input"
-                value={form.status}
-                onChange={(e) => set("status", e.target.value)}
-              >
-                <option value="LEAD">Lead</option>
-                <option value="ACTIVE">Ενεργός</option>
-                <option value="INACTIVE">Ανενεργός</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">ΑΦΜ</label>
-              <input
-                className="input"
-                value={form.afm}
-                onChange={(e) => set("afm", e.target.value)}
-                placeholder="123456789"
-              />
-            </div>
-            <div>
-              <label className="label">Τηλέφωνο</label>
-              <input
-                className="input"
-                value={form.phone}
-                onChange={(e) => set("phone", e.target.value)}
-                placeholder="69xxxxxxxx"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Email</label>
-            <input
-              className="input"
-              type="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-              placeholder="email@example.com"
+            <TextField
+              label="ΑΦΜ"
+              value={form.afm}
+              onChange={(v) => set("afm", v)}
+              placeholder="123456789"
+            />
+            <TextField
+              label="Τηλέφωνο"
+              value={form.phone}
+              onChange={(v) => set("phone", v)}
+              placeholder="69xxxxxxxx"
+              inputProps={{ type: "tel" }}
             />
           </div>
 
-          <div>
-            <label className="label">Εκπρόσωπος</label>
-            <input
-              className="input"
-              value={form.representative_name}
-              onChange={(e) => set("representative_name", e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Email"
+            value={form.email}
+            onChange={(v) => set("email", v)}
+            placeholder="email@example.com"
+            inputProps={{ type: "email" }}
+          />
 
-          <div>
-            <label className="label">Περιοχή</label>
-            <input
-              className="input"
-              value={form.region}
-              onChange={(e) => set("region", e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Εκπρόσωπος"
+            value={form.representative_name}
+            onChange={(v) => set("representative_name", v)}
+          />
 
-          <div>
-            <label className="label">Σημειώσεις</label>
-            <textarea
-              className="input"
-              rows={3}
-              value={form.notes}
-              onChange={(e) => set("notes", e.target.value)}
-            />
-          </div>
+          <TextField
+            label="Περιοχή"
+            value={form.region}
+            onChange={(v) => set("region", v)}
+          />
+
+          <TextAreaField
+            label="Σημειώσεις"
+            value={form.notes}
+            onChange={(v) => set("notes", v)}
+          />
         </div>
       </Modal>
     </>
