@@ -8,9 +8,19 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatNumber, formatDate } from "@/lib/utils";
-import type { Field } from "@/types";
+import type { Field, PlantingMethod, TrainingShape } from "@/types";
 
 // ─── Column definitions ─────────────────────────────────────────────────────
+
+const methodLabel: Record<PlantingMethod, string> = {
+  PLANTING: "Φύτευση",
+  GRAFTING: "Εμβολιασμός",
+};
+const shapeLabel: Record<TrainingShape, string> = {
+  FISHBONE: "Ψαροκόκαλο",
+  UMBRELLA: "Ομπρέλα",
+  OTHER: "Άλλο",
+};
 
 const columns: Column<Field>[] = [
   {
@@ -28,14 +38,32 @@ const columns: Column<Field>[] = [
     render: (row) => formatNumber(row.stremmata),
   },
   {
-    key: "gps_coordinates",
-    header: "GPS",
-    render: (row) => row.gps_coordinates || "—",
+    key: "planting_year",
+    header: "Έτος Φύτ.",
+    sortable: true,
+    render: (row) => (row.planting_year ? String(row.planting_year) : "—"),
   },
   {
-    key: "analysis_number",
-    header: "Αρ. Ανάλυσης",
-    render: (row) => row.analysis_number || "—",
+    key: "planting_method",
+    header: "Μέθοδος",
+    render: (row) =>
+      row.planting_method ? methodLabel[row.planting_method] : "—",
+  },
+  {
+    key: "training_shape",
+    header: "Σχήμα",
+    render: (row) =>
+      row.training_shape ? shapeLabel[row.training_shape] : "—",
+  },
+  {
+    key: "rootstock",
+    header: "Υποκείμενο",
+    render: (row) => row.rootstock || "—",
+  },
+  {
+    key: "spacing",
+    header: "Αποστάσεις",
+    render: (row) => row.spacing || "—",
   },
   {
     key: "created_at",
@@ -53,6 +81,13 @@ const emptyForm = {
   stremmata: "",
   gps_coordinates: "",
   analysis_number: "",
+  planting_year: "",
+  planting_method: "" as PlantingMethod | "",
+  training_shape: "" as TrainingShape | "",
+  rootstock: "",
+  spacing: "",
+  length_m: "",
+  width_m: "",
 };
 
 // ─── Page component ─────────────────────────────────────────────────────────
@@ -90,8 +125,18 @@ export function FieldsListPage() {
     setSaving(true);
     try {
       await api.post("/fields", {
-        ...form,
+        business_entity_id: form.business_entity_id,
+        location_name: form.location_name,
         stremmata: form.stremmata ? Number(form.stremmata) : undefined,
+        gps_coordinates: form.gps_coordinates || undefined,
+        analysis_number: form.analysis_number || undefined,
+        planting_year: form.planting_year ? Number(form.planting_year) : undefined,
+        planting_method: form.planting_method || undefined,
+        training_shape: form.training_shape || undefined,
+        rootstock: form.rootstock || undefined,
+        spacing: form.spacing || undefined,
+        length_m: form.length_m ? Number(form.length_m) : undefined,
+        width_m: form.width_m ? Number(form.width_m) : undefined,
       });
       toast.success("Το χωράφι δημιουργήθηκε");
       setModalOpen(false);
@@ -230,6 +275,92 @@ export function FieldsListPage() {
               onChange={(e) => set("gps_coordinates", e.target.value)}
               placeholder="π.χ. 37.7950, 21.3700"
             />
+          </div>
+
+          <hr className="border-gray-200" />
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+            Στοιχεία Φύτευσης
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Έτος Φύτευσης</label>
+              <input
+                className="input"
+                type="number"
+                value={form.planting_year}
+                onChange={(e) => set("planting_year", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Μέθοδος</label>
+              <select
+                className="input"
+                value={form.planting_method}
+                onChange={(e) => set("planting_method", e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="PLANTING">Φύτευση</option>
+                <option value="GRAFTING">Εμβολιασμός</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Σχήμα Διαμόρφωσης</label>
+              <select
+                className="input"
+                value={form.training_shape}
+                onChange={(e) => set("training_shape", e.target.value)}
+              >
+                <option value="">—</option>
+                <option value="FISHBONE">Ψαροκόκαλο</option>
+                <option value="UMBRELLA">Ομπρέλα</option>
+                <option value="OTHER">Άλλο</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Υποκείμενο</label>
+              <input
+                className="input"
+                value={form.rootstock}
+                onChange={(e) => set("rootstock", e.target.value)}
+                placeholder="π.χ. HAYWARD, BOUNTY"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="label">Αποστάσεις</label>
+              <input
+                className="input"
+                value={form.spacing}
+                onChange={(e) => set("spacing", e.target.value)}
+                placeholder="π.χ. 5Χ3"
+              />
+            </div>
+            <div>
+              <label className="label">Μήκος (m)</label>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={form.length_m}
+                onChange={(e) => set("length_m", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Πλάτος (m)</label>
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                value={form.width_m}
+                onChange={(e) => set("width_m", e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </Modal>

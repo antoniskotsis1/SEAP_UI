@@ -62,6 +62,9 @@ const columns: Column<FinancialTransaction>[] = [
     render: (row) => (
       <span className="font-medium text-gray-900">
         {formatCurrency(row.amount)}
+        {row.raw_amount && (
+          <span className="ml-1 text-xs text-gray-400">({row.raw_amount})</span>
+        )}
       </span>
     ),
   },
@@ -79,6 +82,11 @@ const columns: Column<FinancialTransaction>[] = [
         {invoiceLabel[row.invoice_status]}
       </span>
     ),
+  },
+  {
+    key: "invoice_reference",
+    header: "Αρ. Τιμολογίου",
+    render: (row) => row.invoice_reference || "—",
   },
   {
     key: "transaction_date",
@@ -115,12 +123,15 @@ const filterDefs: FilterOption[] = [
 
 const emptyForm = {
   business_entity_id: "",
+  field_id: "",
   type: "PAYMENT" as TransactionType,
   year: String(new Date().getFullYear()),
   stremmata_covered: "",
   amount: "",
+  raw_amount: "",
   invoice_status: "NOT_ISSUED" as InvoiceStatus,
-  invoice_notes: "",
+  invoice_reference: "",
+  vat_note: "",
   notes: "",
   transaction_date: "",
 };
@@ -161,12 +172,19 @@ export function FinancialsListPage() {
     setSaving(true);
     try {
       await api.post("/financials", {
-        ...form,
+        business_entity_id: form.business_entity_id,
+        field_id: form.field_id || undefined,
+        type: form.type,
         year: Number(form.year),
-        amount: Number(form.amount),
         stremmata_covered: form.stremmata_covered
           ? Number(form.stremmata_covered)
           : undefined,
+        amount: Number(form.amount),
+        raw_amount: form.raw_amount || undefined,
+        invoice_status: form.invoice_status,
+        invoice_reference: form.invoice_reference || undefined,
+        vat_note: form.vat_note || undefined,
+        notes: form.notes || undefined,
         transaction_date: form.transaction_date || undefined,
       });
       toast.success("Η συναλλαγή δημιουργήθηκε");
@@ -268,6 +286,16 @@ export function FinancialsListPage() {
             />
           </div>
 
+          <div>
+            <label className="label">Χωράφι (προαιρετικό)</label>
+            <input
+              className="input"
+              value={form.field_id}
+              onChange={(e) => set("field_id", e.target.value)}
+              placeholder="ID χωραφιού"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Τύπος</label>
@@ -295,7 +323,7 @@ export function FinancialsListPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">
-                Ποσό <span className="text-red-500">*</span>
+                Ποσό (€) <span className="text-red-500">*</span>
               </label>
               <input
                 className="input"
@@ -307,6 +335,18 @@ export function FinancialsListPage() {
               />
             </div>
             <div>
+              <label className="label">Ακατέργαστο ποσό</label>
+              <input
+                className="input"
+                value={form.raw_amount}
+                onChange={(e) => set("raw_amount", e.target.value)}
+                placeholder="π.χ. 1200+288"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="label">Στρέμματα</label>
               <input
                 className="input"
@@ -314,6 +354,15 @@ export function FinancialsListPage() {
                 step="0.1"
                 value={form.stremmata_covered}
                 onChange={(e) => set("stremmata_covered", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Ημερομηνία</label>
+              <input
+                className="input"
+                type="date"
+                value={form.transaction_date}
+                onChange={(e) => set("transaction_date", e.target.value)}
               />
             </div>
           </div>
@@ -332,22 +381,23 @@ export function FinancialsListPage() {
               </select>
             </div>
             <div>
-              <label className="label">Ημερομηνία</label>
+              <label className="label">Αρ. / Αναφορά Τιμολογίου</label>
               <input
                 className="input"
-                type="date"
-                value={form.transaction_date}
-                onChange={(e) => set("transaction_date", e.target.value)}
+                value={form.invoice_reference}
+                onChange={(e) => set("invoice_reference", e.target.value)}
+                placeholder="π.χ. ΤΙΜ 1.488"
               />
             </div>
           </div>
 
           <div>
-            <label className="label">Σημειώσεις Τιμολογίου</label>
+            <label className="label">Σημείωση ΦΠΑ</label>
             <input
               className="input"
-              value={form.invoice_notes}
-              onChange={(e) => set("invoice_notes", e.target.value)}
+              value={form.vat_note}
+              onChange={(e) => set("vat_note", e.target.value)}
+              placeholder="π.χ. δεν έβαλε ΦΠΑ"
             />
           </div>
 

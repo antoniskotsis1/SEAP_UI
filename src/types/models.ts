@@ -37,22 +37,50 @@ export interface Field {
   location_name: string;
   stremmata?: number;
   gps_coordinates?: string;
+
+  // ── Planting metadata (Excel has these at field-row level) ─────────
+  planting_year?: number;
+  planting_method?: PlantingMethod;
+  training_shape?: TrainingShape;
+  rootstock?: string;
+  spacing?: string;
+  length_m?: number;
+  width_m?: number;
+
+  /** Kept as quick-reference; full records live in FieldAnalysis */
   analysis_number?: string;
   created_at: string;
   updated_at: string;
 }
 
+/**
+ * A tree count bucket within a field for a given variety+sex combination.
+ * Variety is ONLY set for FEMALE trees (V22 or V76).
+ * MALE trees are pollinators — variety does not apply.
+ *
+ * Used area (m²) is derived, not stored:
+ *   used_area = tree_count * (field.length_m * field.width_m) / 1000
+ */
 export interface Planting {
   id: string;
   field_id: string;
-  variety: Variety;
   sex: Sex;
+  /** Required when sex === "FEMALE", must be undefined when sex === "MALE" */
+  variety?: Variety;
   tree_count: number;
-  planting_year: number;
-  planting_method: PlantingMethod;
-  training_shape: TrainingShape;
-  rootstock?: string;
-  spacing?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FieldAnalysis {
+  id: string;
+  field_id: string;
+  analysis_number: string;
+  lab_name?: string;
+  taken_at?: string;
+  received_at?: string;
+  attachment_url?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
@@ -62,7 +90,9 @@ export interface ProductionRecord {
   planting_id: string;
   harvest_year: number;
   quantity_kg: number;
+  quantity_clean_kg?: number;
   is_estimate: boolean;
+  price_per_kg?: number;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -71,12 +101,15 @@ export interface ProductionRecord {
 export interface FinancialTransaction {
   id: string;
   business_entity_id: string;
+  field_id?: string;
   type: TransactionType;
   year: number;
   stremmata_covered?: number;
   amount: number;
+  raw_amount?: string;
   invoice_status: InvoiceStatus;
-  invoice_notes?: string;
+  invoice_reference?: string;
+  vat_note?: string;
   notes?: string;
   transaction_date?: string;
   created_at: string;
@@ -95,6 +128,7 @@ export interface FieldPhoto {
 export interface FieldIssue {
   id: string;
   field_id: string;
+  title: string;
   description: string;
   severity: IssueSeverity;
   status: IssueStatus;
@@ -108,14 +142,12 @@ export interface FieldIssue {
 
 export type SortDirection = "asc" | "desc";
 
-/** Query params sent to every list endpoint: GET /api/<entity>?... */
 export interface TableQueryParams {
   page?: number;
   page_size?: number;
   search?: string;
   sort_by?: string;
   sort_dir?: SortDirection;
-  /** Arbitrary filter key-values, e.g. { status: "ACTIVE", type: "BUSINESS" } */
   [filterKey: string]: string | number | undefined;
 }
 
@@ -126,7 +158,6 @@ export interface PaginatedResponse<T> {
   page_size: number;
 }
 
-/** Describes one filter the table toolbar should render */
 export interface FilterOption {
   key: string;
   label: string;

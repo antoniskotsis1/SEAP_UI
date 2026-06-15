@@ -8,42 +8,36 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/utils";
-import type {
-  Planting,
-  Variety,
-  Sex,
-  PlantingMethod,
-  TrainingShape,
-  FilterOption,
-} from "@/types";
+import type { Planting, Variety, Sex, FilterOption } from "@/types";
 
-// ─── Column definitions ─────────────────────────────────────────────────────
+// ─── Labels ─────────────────────────────────────────────────────────────────
 
 const varietyLabel: Record<Variety, string> = { V22: "V22", V76: "V76" };
 const sexLabel: Record<Sex, string> = { FEMALE: "Θηλυκό", MALE: "Αρσενικό" };
-const methodLabel: Record<PlantingMethod, string> = {
-  PLANTING: "Φύτευση",
-  GRAFTING: "Εμβολιασμός",
-};
-const shapeLabel: Record<TrainingShape, string> = {
-  FISHBONE: "Ψαροκόκαλο",
-  UMBRELLA: "Ομπρέλα",
-  OTHER: "Άλλο",
-};
+
+// ─── Column definitions ─────────────────────────────────────────────────────
 
 const columns: Column<Planting>[] = [
+  {
+    key: "sex",
+    header: "Φύλο",
+    sortable: true,
+    render: (row) => (
+      <span className={row.sex === "FEMALE" ? "badge-blue" : "badge-gray"}>
+        {sexLabel[row.sex]}
+      </span>
+    ),
+  },
   {
     key: "variety",
     header: "Ποικιλία",
     sortable: true,
-    render: (row) => (
-      <span className="badge-blue">{varietyLabel[row.variety]}</span>
-    ),
-  },
-  {
-    key: "sex",
-    header: "Φύλο",
-    render: (row) => sexLabel[row.sex],
+    render: (row) =>
+      row.variety ? (
+        <span className="badge-blue">{varietyLabel[row.variety]}</span>
+      ) : (
+        <span className="text-gray-400">—</span>
+      ),
   },
   {
     key: "tree_count",
@@ -51,35 +45,11 @@ const columns: Column<Planting>[] = [
     sortable: true,
     render: (row) => formatNumber(row.tree_count),
   },
-  {
-    key: "planting_year",
-    header: "Έτος Φύτ.",
-    sortable: true,
-    render: (row) => String(row.planting_year),
-  },
-  {
-    key: "planting_method",
-    header: "Μέθοδος",
-    render: (row) => methodLabel[row.planting_method],
-  },
-  {
-    key: "training_shape",
-    header: "Σχήμα",
-    render: (row) => shapeLabel[row.training_shape],
-  },
 ];
 
 // ─── Filter definitions ─────────────────────────────────────────────────────
 
 const filterDefs: FilterOption[] = [
-  {
-    key: "variety",
-    label: "Ποικιλία",
-    options: [
-      { value: "V22", label: "V22" },
-      { value: "V76", label: "V76" },
-    ],
-  },
   {
     key: "sex",
     label: "Φύλο",
@@ -88,20 +58,23 @@ const filterDefs: FilterOption[] = [
       { value: "MALE", label: "Αρσενικό" },
     ],
   },
+  {
+    key: "variety",
+    label: "Ποικιλία",
+    options: [
+      { value: "V22", label: "V22" },
+      { value: "V76", label: "V76" },
+    ],
+  },
 ];
 
 // ─── Initial form state ─────────────────────────────────────────────────────
 
 const emptyForm = {
   field_id: "",
-  variety: "V22" as Variety,
   sex: "FEMALE" as Sex,
+  variety: "V22" as Variety | "",
   tree_count: "",
-  planting_year: String(new Date().getFullYear()),
-  planting_method: "PLANTING" as PlantingMethod,
-  training_shape: "FISHBONE" as TrainingShape,
-  rootstock: "",
-  spacing: "",
 };
 
 // ─── Page component ─────────────────────────────────────────────────────────
@@ -109,7 +82,7 @@ const emptyForm = {
 export function PlantingsListPage() {
   const table = useTableQuery<Planting>({
     endpoint: "/plantings",
-    defaultSortBy: "planting_year",
+    defaultSortBy: "tree_count",
     defaultSortDir: "desc",
   });
 
@@ -137,12 +110,17 @@ export function PlantingsListPage() {
       toast.error("Ο αριθμός δέντρων είναι υποχρεωτικός");
       return;
     }
+    if (form.sex === "FEMALE" && !form.variety) {
+      toast.error("Η ποικιλία είναι υποχρεωτική για θηλυκά δέντρα");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/plantings", {
-        ...form,
+        field_id: form.field_id,
+        sex: form.sex,
+        variety: form.sex === "FEMALE" ? form.variety : undefined,
         tree_count: Number(form.tree_count),
-        planting_year: Number(form.planting_year),
       });
       toast.success("Η φύτευση δημιουργήθηκε");
       setModalOpen(false);
@@ -245,97 +223,49 @@ export function PlantingsListPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Ποικιλία</label>
-              <select
-                className="input"
-                value={form.variety}
-                onChange={(e) => set("variety", e.target.value)}
-              >
-                <option value="V22">V22</option>
-                <option value="V76">V76</option>
-              </select>
-            </div>
-            <div>
               <label className="label">Φύλο</label>
               <select
                 className="input"
                 value={form.sex}
-                onChange={(e) => set("sex", e.target.value)}
+                onChange={(e) => {
+                  set("sex", e.target.value);
+                  if (e.target.value === "MALE") set("variety", "");
+                }}
               >
                 <option value="FEMALE">Θηλυκό</option>
-                <option value="MALE">Αρσενικό</option>
+                <option value="MALE">Αρσενικό (επικονιαστής)</option>
               </select>
             </div>
+
+            {form.sex === "FEMALE" && (
+              <div>
+                <label className="label">
+                  Ποικιλία <span className="text-red-500">*</span>
+                </label>
+                <select
+                  className="input"
+                  value={form.variety}
+                  onChange={(e) => set("variety", e.target.value)}
+                >
+                  <option value="">—</option>
+                  <option value="V22">V22</option>
+                  <option value="V76">V76</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">
-                Αριθμός Δέντρων <span className="text-red-500">*</span>
-              </label>
-              <input
-                className="input"
-                type="number"
-                value={form.tree_count}
-                onChange={(e) => set("tree_count", e.target.value)}
-                placeholder="π.χ. 500"
-              />
-            </div>
-            <div>
-              <label className="label">Έτος Φύτευσης</label>
-              <input
-                className="input"
-                type="number"
-                value={form.planting_year}
-                onChange={(e) => set("planting_year", e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Μέθοδος</label>
-              <select
-                className="input"
-                value={form.planting_method}
-                onChange={(e) => set("planting_method", e.target.value)}
-              >
-                <option value="PLANTING">Φύτευση</option>
-                <option value="GRAFTING">Εμβολιασμός</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Σχήμα Διαμόρφωσης</label>
-              <select
-                className="input"
-                value={form.training_shape}
-                onChange={(e) => set("training_shape", e.target.value)}
-              >
-                <option value="FISHBONE">Ψαροκόκαλο</option>
-                <option value="UMBRELLA">Ομπρέλα</option>
-                <option value="OTHER">Άλλο</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Υποκείμενο</label>
-              <input
-                className="input"
-                value={form.rootstock}
-                onChange={(e) => set("rootstock", e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="label">Αποστάσεις</label>
-              <input
-                className="input"
-                value={form.spacing}
-                onChange={(e) => set("spacing", e.target.value)}
-                placeholder="π.χ. 6x6"
-              />
-            </div>
+          <div>
+            <label className="label">
+              Αριθμός Δέντρων <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="input"
+              type="number"
+              value={form.tree_count}
+              onChange={(e) => set("tree_count", e.target.value)}
+              placeholder="π.χ. 500"
+            />
           </div>
         </div>
       </Modal>

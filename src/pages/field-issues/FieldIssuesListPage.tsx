@@ -33,12 +33,18 @@ const statusLabel: Record<IssueStatus, string> = {
 
 const columns: Column<FieldIssue>[] = [
   {
+    key: "title",
+    header: "Τίτλος",
+    sortable: true,
+    render: (row) => (
+      <span className="font-medium text-gray-900">{row.title}</span>
+    ),
+  },
+  {
     key: "description",
     header: "Περιγραφή",
     render: (row) => (
-      <span className="font-medium text-gray-900 line-clamp-1">
-        {row.description}
-      </span>
+      <span className="line-clamp-1 text-gray-600">{row.description}</span>
     ),
   },
   {
@@ -111,6 +117,7 @@ const filterDefs: FilterOption[] = [
 
 const emptyForm = {
   field_id: "",
+  title: "",
   description: "",
   severity: "MEDIUM" as IssueSeverity,
   status: "OPEN" as IssueStatus,
@@ -147,6 +154,10 @@ export function FieldIssuesListPage() {
   const handleSubmit = async () => {
     if (!form.field_id.trim()) {
       toast.error("Το χωράφι είναι υποχρεωτικό");
+      return;
+    }
+    if (!form.title.trim()) {
+      toast.error("Ο τίτλος είναι υποχρεωτικός");
       return;
     }
     if (!form.description.trim()) {
@@ -257,6 +268,18 @@ export function FieldIssuesListPage() {
 
           <div>
             <label className="label">
+              Τίτλος <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="input"
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+              placeholder="π.χ. Προσβολή από έντομα"
+            />
+          </div>
+
+          <div>
+            <label className="label">
               Περιγραφή <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -264,7 +287,7 @@ export function FieldIssuesListPage() {
               rows={3}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              placeholder="Περιγράψτε το πρόβλημα…"
+              placeholder="Λεπτομερής περιγραφή του προβλήματος…"
             />
           </div>
 
