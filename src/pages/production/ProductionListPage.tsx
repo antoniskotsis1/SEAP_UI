@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
-import { formatNumber, formatDate } from "@/lib/utils";
+import { formatNumber, formatCurrency, formatDate } from "@/lib/utils";
 import type { ProductionRecord } from "@/types";
 
 // ─── Column definitions ─────────────────────────────────────────────────────
@@ -25,13 +25,28 @@ const columns: Column<ProductionRecord>[] = [
   },
   {
     key: "quantity_kg",
-    header: "Ποσότητα (kg)",
+    header: "Μεικτό (kg)",
     sortable: true,
     render: (row) => formatNumber(row.quantity_kg),
   },
   {
+    key: "quantity_clean_kg",
+    header: "Καθαρό (kg)",
+    sortable: true,
+    render: (row) =>
+      row.quantity_clean_kg !== undefined
+        ? formatNumber(row.quantity_clean_kg)
+        : "—",
+  },
+  {
+    key: "price_per_kg",
+    header: "Τιμή/kg",
+    render: (row) =>
+      row.price_per_kg !== undefined ? formatCurrency(row.price_per_kg) : "—",
+  },
+  {
     key: "is_estimate",
-    header: "Εκτίμηση",
+    header: "Τύπος",
     render: (row) => (
       <span className={row.is_estimate ? "badge-yellow" : "badge-green"}>
         {row.is_estimate ? "Εκτίμηση" : "Πραγματικό"}
@@ -57,7 +72,9 @@ const emptyForm = {
   planting_id: "",
   harvest_year: String(new Date().getFullYear()),
   quantity_kg: "",
+  quantity_clean_kg: "",
   is_estimate: false,
+  price_per_kg: "",
   notes: "",
 };
 
@@ -91,15 +108,21 @@ export function ProductionListPage() {
       return;
     }
     if (!form.quantity_kg) {
-      toast.error("Η ποσότητα είναι υποχρεωτική");
+      toast.error("Η ποσότητα (μεικτό) είναι υποχρεωτική");
       return;
     }
     setSaving(true);
     try {
       await api.post("/production", {
-        ...form,
+        planting_id: form.planting_id,
         harvest_year: Number(form.harvest_year),
         quantity_kg: Number(form.quantity_kg),
+        quantity_clean_kg: form.quantity_clean_kg
+          ? Number(form.quantity_clean_kg)
+          : undefined,
+        is_estimate: form.is_estimate,
+        price_per_kg: form.price_per_kg ? Number(form.price_per_kg) : undefined,
+        notes: form.notes || undefined,
       });
       toast.success("Η καταγραφή δημιουργήθηκε");
       setModalOpen(false);
@@ -196,19 +219,20 @@ export function ProductionListPage() {
             />
           </div>
 
+          <div>
+            <label className="label">Έτος Συγκομιδής</label>
+            <input
+              className="input"
+              type="number"
+              value={form.harvest_year}
+              onChange={(e) => set("harvest_year", e.target.value)}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Έτος Συγκομιδής</label>
-              <input
-                className="input"
-                type="number"
-                value={form.harvest_year}
-                onChange={(e) => set("harvest_year", e.target.value)}
-              />
-            </div>
-            <div>
               <label className="label">
-                Ποσότητα (kg) <span className="text-red-500">*</span>
+                Μεικτό βάρος (kg) <span className="text-red-500">*</span>
               </label>
               <input
                 className="input"
@@ -219,6 +243,29 @@ export function ProductionListPage() {
                 placeholder="π.χ. 1500"
               />
             </div>
+            <div>
+              <label className="label">Καθαρό βάρος (kg)</label>
+              <input
+                className="input"
+                type="number"
+                step="0.1"
+                value={form.quantity_clean_kg}
+                onChange={(e) => set("quantity_clean_kg", e.target.value)}
+                placeholder="π.χ. 1350"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Τιμή / kg (€)</label>
+            <input
+              className="input"
+              type="number"
+              step="0.01"
+              value={form.price_per_kg}
+              onChange={(e) => set("price_per_kg", e.target.value)}
+              placeholder="π.χ. 0.85"
+            />
           </div>
 
           <div>
