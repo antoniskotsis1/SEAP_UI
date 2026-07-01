@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FiCamera, FiPlus } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -7,45 +7,77 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
+import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
-import type { FieldPhoto } from "@/types";
+import { formatDate, formatNumber } from "@/lib/utils";
+import type {
+  FieldListItem,
+  FieldPhoto,
+  PhotoCategory,
+} from "@/types";
 
-// ─── Column definitions ─────────────────────────────────────────────────────
+// ─── Category config ─────────────────────────────────────────────────────────
 
-const columns: Column<FieldPhoto>[] = [
+const CATEGORY_ORDER: PhotoCategory[] = [
+  "KLADEMA",
+  "ARAIWMA_BLASTOU",
+  "ARAIWMA_KARPOU",
+  "KALOKAIRI_NERA",
+  "PERIODOS_SUGKOMIDIS",
+  "OTHER",
+];
+
+const categoryLabel: Record<PhotoCategory, string> = {
+  KLADEMA: "Κλάδεμα",
+  ARAIWMA_BLASTOU: "Αραίωμα Βλαστού",
+  ARAIWMA_KARPOU: "Αραίωμα Καρπού",
+  KALOKAIRI_NERA: "Καλοκαίρι-Νερά",
+  PERIODOS_SUGKOMIDIS: "Περίοδος Συγκομιδής",
+  OTHER: "Άλλο",
+};
+
+const categoryBadge: Record<PhotoCategory, string> = {
+  KLADEMA: "badge-gray",
+  ARAIWMA_BLASTOU: "badge-green",
+  ARAIWMA_KARPOU: "badge-blue",
+  KALOKAIRI_NERA: "badge-yellow",
+  PERIODOS_SUGKOMIDIS: "badge-red",
+  OTHER: "badge-gray",
+};
+
+// ─── Field list columns ──────────────────────────────────────────────────────
+
+const columns: Column<FieldListItem>[] = [
   {
-    key: "url",
-    header: "Φωτογραφία",
+    key: "location_name",
+    header: "Χωράφι",
+    sortable: true,
     render: (row) => (
-      <a
-        href={row.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-brand-600 hover:underline"
-      >
-        Προβολή
-      </a>
+      <span className="font-medium text-gray-900 transition-colors group-hover:text-brand-600">
+        {row.location_name}
+      </span>
     ),
   },
   {
-    key: "taken_at",
-    header: "Λήψη",
+    key: "owner_name",
+    header: "Παραγωγός",
     sortable: true,
-    render: (row) => formatDate(row.taken_at),
+    render: (row) => row.owner_name || "—",
   },
   {
-    key: "notes",
-    header: "Σημειώσεις",
-    render: (row) => row.notes || "—",
+    key: "region",
+    header: "Περιοχή",
+    sortable: true,
+    render: (row) => row.region || "—",
   },
   {
-    key: "created_at",
-    header: "Ανέβηκε",
+    key: "stremmata",
+    header: "Στρέμματα",
     sortable: true,
-    render: (row) => formatDate(row.created_at),
+    render: (row) =>
+      row.stremmata != null ? formatNumber(row.stremmata) : "—",
   },
 ];
 
@@ -53,6 +85,7 @@ const columns: Column<FieldPhoto>[] = [
 
 const emptyForm = {
   field_id: "",
+  category: "" as PhotoCategory | "",
   url: "",
   taken_at: "",
   notes: "",
@@ -61,30 +94,52 @@ const emptyForm = {
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FieldPhotosListPage() {
-  const table = useTableQuery<FieldPhoto>({
-    endpoint: "/field-photos",
-    defaultSortBy: "created_at",
-    defaultSortDir: "desc",
+  const table = useTableQuery<FieldListItem>({
+    endpoint: "/fields",
+    defaultSortBy: "location_name",
   });
 
-  const [modalOpen, setModalOpen] = useState(false);
+  // ── Gallery modal ─────────────────────────────────────────────────────────
+  const [selectedField, setSelectedField] = useState<FieldListItem | null>(null);
+  const [fieldPhotos, setFieldPhotos] = useState<FieldPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photosKey, setPhotosKey] = useState(0);
+
+  useEffect(() => {
+    if (!selectedField) { setFieldPhotos([]); return; }
+    setPhotosLoading(true);
+    api
+      .list<FieldPhoto>("/field-photos", { field_id: selectedField.id, page_size: 200 })
+      .then((r) => setFieldPhotos(r.data))
+      .catch(() => setFieldPhotos([]))
+      .finally(() => setPhotosLoading(false));
+  }, [selectedField, photosKey]);
+
+  const photosByCategory = CATEGORY_ORDER.reduce<Record<PhotoCategory, FieldPhoto[]>>(
+    (acc, cat) => {
+      acc[cat] = fieldPhotos.filter((p) => p.category === cat);
+      return acc;
+    },
+    {} as Record<PhotoCategory, FieldPhoto[]>,
+  );
+
+  // ── Upload modal ──────────────────────────────────────────────────────────
+  const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const isEmpty =
-    !table.isLoading &&
-    table.total === 0 &&
-    !table.search &&
-    Object.keys(table.filters).length === 0;
-
-  const openModal = () => {
+  const openCreate = () => {
     setForm(emptyForm);
-    setModalOpen(true);
+    setCreateOpen(true);
   };
 
   const handleSubmit = async () => {
     if (!form.field_id.trim()) {
       toast.error("Το χωράφι είναι υποχρεωτικό");
+      return;
+    }
+    if (!form.category) {
+      toast.error("Η κατηγορία είναι υποχρεωτική");
       return;
     }
     if (!form.url.trim()) {
@@ -98,8 +153,11 @@ export function FieldPhotosListPage() {
         taken_at: form.taken_at || undefined,
       });
       toast.success("Η φωτογραφία προστέθηκε");
-      setModalOpen(false);
+      setCreateOpen(false);
       table.refetch();
+      if (selectedField && form.field_id === selectedField.id) {
+        setPhotosKey((k) => k + 1);
+      }
     } catch {
       toast.error("Αποτυχία προσθήκης");
     } finally {
@@ -110,13 +168,19 @@ export function FieldPhotosListPage() {
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const isEmpty =
+    !table.isLoading &&
+    table.total === 0 &&
+    !table.search &&
+    Object.keys(table.filters).length === 0;
+
   return (
     <>
       <PageHeader
         title="Φωτογραφίες Χωραφιών"
-        description="Φωτογραφική τεκμηρίωση χωραφιών"
+        description="Φωτογραφική τεκμηρίωση χωραφιών ανά κατηγορία"
         actions={
-          <Button onPress={openModal}>
+          <Button onPress={openCreate}>
             <FiPlus className="h-4 w-4" />
             Ανέβασμα Φωτογραφίας
           </Button>
@@ -126,25 +190,20 @@ export function FieldPhotosListPage() {
       {isEmpty ? (
         <EmptyState
           icon={FiCamera}
-          title="Δεν υπάρχουν φωτογραφίες"
-          description="Ξεκινήστε ανεβάζοντας φωτογραφίες."
-          action={
-            <Button onPress={openModal}>
-              <FiPlus className="h-4 w-4" />
-              Ανέβασμα Φωτογραφίας
-            </Button>
-          }
+          title="Δεν υπάρχουν χωράφια"
+          description="Προσθέστε χωράφια για να ξεκινήσετε τη φωτογράφηση."
         />
       ) : (
         <DataTable
           columns={columns}
           data={table.data}
           keyExtractor={(row) => row.id}
+          onRowClick={setSelectedField}
           isLoading={table.isLoading}
           error={table.error}
           search={table.search}
           onSearchChange={table.setSearch}
-          searchPlaceholder="Αναζήτηση φωτογραφίας…"
+          searchPlaceholder="Αναζήτηση χωραφιού, παραγωγού…"
           sortBy={table.sortBy}
           sortDir={table.sortDir}
           onSort={table.toggleSort}
@@ -157,13 +216,79 @@ export function FieldPhotosListPage() {
         />
       )}
 
+      {/* ── Photo gallery modal ──────────────────────────────────────────── */}
       <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        open={!!selectedField}
+        onClose={() => setSelectedField(null)}
+        title={selectedField ? `${selectedField.location_name} — Φωτογραφίες` : ""}
+        wide
+        footer={
+          <Button variant="secondary" onPress={() => setSelectedField(null)}>
+            Κλείσιμο
+          </Button>
+        }
+      >
+        {selectedField && (
+          <div className="space-y-6">
+            {photosLoading ? (
+              <p className="py-8 text-center text-sm text-gray-400">Φόρτωση…</p>
+            ) : fieldPhotos.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-400">
+                Δεν υπάρχουν φωτογραφίες για αυτό το χωράφι.
+              </p>
+            ) : (
+              CATEGORY_ORDER.map((cat) => {
+                const photos = photosByCategory[cat];
+                if (photos.length === 0) return null;
+                return (
+                  <div key={cat}>
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className={categoryBadge[cat]}>{categoryLabel[cat]}</span>
+                      <span className="text-xs text-gray-400">({photos.length})</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {photos.map((photo) => (
+                        <div
+                          key={photo.id}
+                          className="overflow-hidden rounded-lg border border-gray-200"
+                        >
+                          <img
+                            src={photo.url}
+                            alt={photo.notes ?? ""}
+                            className="h-36 w-full object-cover"
+                            loading="lazy"
+                          />
+                          <div className="px-2 py-1.5">
+                            {photo.notes && (
+                              <p className="truncate text-xs font-medium text-gray-700">
+                                {photo.notes}
+                              </p>
+                            )}
+                            {photo.taken_at && (
+                              <p className="text-xs text-gray-400">
+                                {formatDate(photo.taken_at)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Upload modal ─────────────────────────────────────────────────── */}
+      <Modal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         title="Ανέβασμα Φωτογραφίας"
         footer={
           <>
-            <Button variant="secondary" onPress={() => setModalOpen(false)}>
+            <Button variant="secondary" onPress={() => setCreateOpen(false)}>
               Ακύρωση
             </Button>
             <Button onPress={handleSubmit} isDisabled={saving}>
@@ -173,13 +298,29 @@ export function FieldPhotosListPage() {
         }
       >
         <div className="space-y-4">
-          <TextField
-            label="Χωράφι"
-            isRequired
-            value={form.field_id}
-            onChange={(v) => set("field_id", v)}
-            placeholder="ID χωραφιού"
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Χωράφι"
+              isRequired
+              value={form.field_id}
+              onChange={(v) => set("field_id", v)}
+              placeholder="ID χωραφιού"
+            />
+            <SelectField
+              label="Κατηγορία"
+              required
+              value={form.category}
+              onChange={(e) => set("category", e.target.value)}
+            >
+              <option value="">—</option>
+              <option value="KLADEMA">Κλάδεμα</option>
+              <option value="ARAIWMA_BLASTOU">Αραίωμα Βλαστού</option>
+              <option value="ARAIWMA_KARPOU">Αραίωμα Καρπού</option>
+              <option value="KALOKAIRI_NERA">Καλοκαίρι-Νερά</option>
+              <option value="PERIODOS_SUGKOMIDIS">Περίοδος Συγκομιδής</option>
+              <option value="OTHER">Άλλο</option>
+            </SelectField>
+          </div>
 
           <TextField
             label="URL Φωτογραφίας"

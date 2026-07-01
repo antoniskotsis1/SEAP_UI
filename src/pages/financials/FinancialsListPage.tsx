@@ -33,9 +33,21 @@ const invoiceLabel: Record<InvoiceStatus, string> = {
   PARTIAL: "Μερική",
 };
 
+// ─── Extended row type ───────────────────────────────────────────────────────
+
+type FinancialRow = FinancialTransaction & { owner_name?: string };
+
 // ─── Column definitions ─────────────────────────────────────────────────────
 
-const columns: Column<FinancialTransaction>[] = [
+const columns: Column<FinancialRow>[] = [
+  {
+    key: "owner_name",
+    header: "Παραγωγός",
+    sortable: true,
+    render: (row) => (
+      <span className="font-medium text-gray-900">{row.owner_name || "—"}</span>
+    ),
+  },
   {
     key: "type",
     header: "Τύπος",
@@ -142,7 +154,7 @@ const emptyForm = {
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FinancialsListPage() {
-  const table = useTableQuery<FinancialTransaction>({
+  const table = useTableQuery<FinancialRow>({
     endpoint: "/financials",
     defaultSortBy: "transaction_date",
     defaultSortDir: "desc",

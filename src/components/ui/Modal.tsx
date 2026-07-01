@@ -7,6 +7,7 @@ import {
 } from "react-aria-components";
 import { FiX } from "react-icons/fi";
 import { Button } from "./Button";
+import { cn } from "@/lib/utils";
 
 interface ModalProps {
   open: boolean;
@@ -14,9 +15,10 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  wide?: boolean;
 }
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, wide }: ModalProps) {
   return (
     <ModalOverlay
       isOpen={open}
@@ -25,7 +27,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
       }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
     >
-      <AriaModal className="relative w-full max-w-lg rounded-xl bg-white shadow-xl outline-none">
+      <AriaModal className={cn("relative w-full rounded-xl bg-white shadow-xl outline-none", wide ? "max-w-3xl" : "max-w-lg")}>
         {/*
          * Dialog provides role="dialog", aria-modal="true", and associates
          * the Heading below as aria-labelledby automatically.
