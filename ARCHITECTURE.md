@@ -19,20 +19,27 @@
 ```
 src/
 ├── components/
+│   ├── entities/
+│   │   ├── ProducerDetailModal.tsx  # Producer detail dialog (badges + info + fields list); self-fetches fields
+│   │   └── FieldDetailModal.tsx     # Field detail dialog (<dl> of DetailRow rows)
 │   ├── tables/
 │   │   └── DataTable.tsx          # Universal table component
 │   └── ui/
+│       ├── DescriptionList.tsx    # InfoField + DetailRow presentational primitives
 │       ├── EmptyState.tsx         # Empty / zero-data placeholder
+│       ├── FormModal.tsx          # Modal + standard Cancel/Submit footer (create/edit dialogs)
 │       ├── Modal.tsx              # Reusable dialog (escape + overlay click to close)
 │       ├── PageHeader.tsx         # Title + description + right-side action slot
 │       └── StatCard.tsx           # Dashboard stat card
 ├── hooks/
+│   ├── useLookupModal.ts          # Fetch a single record by id → open its detail modal
 │   └── useTableQuery.ts           # Pagination, search, sort, filter state + fetch
 ├── layouts/
 │   ├── AppLayout.tsx              # Shell with sidebar + main content area
 │   └── Sidebar.tsx                # Navigation sidebar
 ├── lib/
 │   ├── api.ts                     # ApiClient (GET, POST, PUT, PATCH, DELETE, list)
+│   ├── labels.ts                  # Enum → display-label and enum → badge-class maps
 │   └── utils.ts                   # cn(), formatDate(), formatNumber(), formatCurrency()
 ├── pages/
 │   ├── DashboardPage.tsx
@@ -292,7 +299,7 @@ Generic, fully-typed table. Key props:
 ## `Modal` component (`src/components/ui/Modal.tsx`)
 
 ```ts
-<Modal open={boolean} onClose={() => void} title={string} footer={ReactNode}>
+<Modal open={boolean} onClose={() => void} title={string} footer={ReactNode} wide?>
   {/* form content */}
 </Modal>
 ```
@@ -300,6 +307,21 @@ Generic, fully-typed table. Key props:
 - Closes on Escape or overlay click
 - Locks body scroll while open
 - Footer slot is right-aligned (use for Cancel + Submit buttons)
+
+---
+
+## Shared building blocks (reuse before hand-rolling)
+
+Every list page composes these instead of duplicating markup:
+
+| Module | Use for |
+|---|---|
+| `ui/FormModal` | Create/edit dialogs — wraps `Modal` with the standard `Ακύρωση` + submit footer (`saving` disables the button and shows `Αποθήκευση…`). Props: `open, onClose, title, onSubmit, saving, submitLabel?, wide?`. |
+| `entities/ProducerDetailModal` | Read-only producer dialog. Pass `entity: BusinessEntity \| null` + `onClose`; it fetches and lists that producer's fields itself. |
+| `entities/FieldDetailModal` | Read-only field dialog. Pass `field: FieldListItem \| null` + `onClose`. |
+| `ui/DescriptionList` | `InfoField` (grid cell) and `DetailRow` (labelled row); both render `null` on empty value. |
+| `hooks/useLookupModal<T>(endpoint)` | Returns `{ record, openById(id?), close }` — fetch a single record by id then open its detail modal. Pair with the two entity modals. |
+| `lib/labels` | Enum → Greek label maps and enum → `badge-*` class maps (entity/planting/field/issue/financial/photo). Never re-declare these in a page. |
 
 ---
 

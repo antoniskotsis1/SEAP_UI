@@ -37,7 +37,12 @@ const producerStatuses = [
   { label: "Lead", value: "LEAD", to: "/business-entities?status=LEAD" },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Called when a navigation link is followed — used to close the mobile drawer. */
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
   const isOnProducers = location.pathname.startsWith("/business-entities");
   const [producersOpen, setProducersOpen] = useState(isOnProducers);
@@ -51,7 +56,7 @@ export function Sidebar() {
   const currentStatus = new URLSearchParams(location.search).get("status");
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-white">
+    <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
       <div className="flex h-16 items-center gap-3 border-b border-gray-200 px-6">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-500 text-sm font-bold text-white">
           AG
@@ -66,6 +71,7 @@ export function Sidebar() {
         <NavLink
           to="/"
           end
+          onClick={onNavigate}
           className={({ isActive }) =>
             cn(
               "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
@@ -107,6 +113,7 @@ export function Sidebar() {
                   <NavLink
                     key={s.value}
                     to={s.to}
+                    onClick={onNavigate}
                     className={cn(
                       "flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                       isActive
@@ -127,6 +134,7 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.to === "/"}
+            onClick={onNavigate}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",

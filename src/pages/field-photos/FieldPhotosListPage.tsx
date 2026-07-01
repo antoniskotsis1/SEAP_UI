@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { FormModal } from "@/components/ui/FormModal";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
@@ -12,40 +13,16 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatDate, formatNumber } from "@/lib/utils";
+import {
+  PHOTO_CATEGORY_ORDER,
+  photoCategoryLabel,
+  photoCategoryBadge,
+} from "@/lib/labels";
 import type {
   FieldListItem,
   FieldPhoto,
   PhotoCategory,
 } from "@/types";
-
-// ─── Category config ─────────────────────────────────────────────────────────
-
-const CATEGORY_ORDER: PhotoCategory[] = [
-  "KLADEMA",
-  "ARAIWMA_BLASTOU",
-  "ARAIWMA_KARPOU",
-  "KALOKAIRI_NERA",
-  "PERIODOS_SUGKOMIDIS",
-  "OTHER",
-];
-
-const categoryLabel: Record<PhotoCategory, string> = {
-  KLADEMA: "Κλάδεμα",
-  ARAIWMA_BLASTOU: "Αραίωμα Βλαστού",
-  ARAIWMA_KARPOU: "Αραίωμα Καρπού",
-  KALOKAIRI_NERA: "Καλοκαίρι-Νερά",
-  PERIODOS_SUGKOMIDIS: "Περίοδος Συγκομιδής",
-  OTHER: "Άλλο",
-};
-
-const categoryBadge: Record<PhotoCategory, string> = {
-  KLADEMA: "badge-gray",
-  ARAIWMA_BLASTOU: "badge-green",
-  ARAIWMA_KARPOU: "badge-blue",
-  KALOKAIRI_NERA: "badge-yellow",
-  PERIODOS_SUGKOMIDIS: "badge-red",
-  OTHER: "badge-gray",
-};
 
 // ─── Field list columns ──────────────────────────────────────────────────────
 
@@ -115,7 +92,7 @@ export function FieldPhotosListPage() {
       .finally(() => setPhotosLoading(false));
   }, [selectedField, photosKey]);
 
-  const photosByCategory = CATEGORY_ORDER.reduce<Record<PhotoCategory, FieldPhoto[]>>(
+  const photosByCategory = PHOTO_CATEGORY_ORDER.reduce<Record<PhotoCategory, FieldPhoto[]>>(
     (acc, cat) => {
       acc[cat] = fieldPhotos.filter((p) => p.category === cat);
       return acc;
@@ -237,13 +214,13 @@ export function FieldPhotosListPage() {
                 Δεν υπάρχουν φωτογραφίες για αυτό το χωράφι.
               </p>
             ) : (
-              CATEGORY_ORDER.map((cat) => {
+              PHOTO_CATEGORY_ORDER.map((cat) => {
                 const photos = photosByCategory[cat];
                 if (photos.length === 0) return null;
                 return (
                   <div key={cat}>
                     <div className="mb-3 flex items-center gap-2">
-                      <span className={categoryBadge[cat]}>{categoryLabel[cat]}</span>
+                      <span className={photoCategoryBadge[cat]}>{photoCategoryLabel[cat]}</span>
                       <span className="text-xs text-gray-400">({photos.length})</span>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
@@ -282,20 +259,13 @@ export function FieldPhotosListPage() {
       </Modal>
 
       {/* ── Upload modal ─────────────────────────────────────────────────── */}
-      <Modal
+      <FormModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Ανέβασμα Φωτογραφίας"
-        footer={
-          <>
-            <Button variant="secondary" onPress={() => setCreateOpen(false)}>
-              Ακύρωση
-            </Button>
-            <Button onPress={handleSubmit} isDisabled={saving}>
-              {saving ? "Αποθήκευση…" : "Προσθήκη"}
-            </Button>
-          </>
-        }
+        onSubmit={handleSubmit}
+        saving={saving}
+        submitLabel="Προσθήκη"
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -344,7 +314,7 @@ export function FieldPhotosListPage() {
             onChange={(v) => set("notes", v)}
           />
         </div>
-      </Modal>
+      </FormModal>
     </>
   );
 }

@@ -25,21 +25,21 @@ export function Modal({ open, onClose, title, children, footer, wide }: ModalPro
       onOpenChange={(isOpen) => {
         if (!isOpen) onClose();
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
     >
-      <AriaModal className={cn("relative w-full rounded-xl bg-white shadow-xl outline-none", wide ? "max-w-3xl" : "max-w-lg")}>
+      <AriaModal className={cn("relative flex max-h-[calc(100dvh-2rem)] w-full flex-col rounded-xl bg-white shadow-xl outline-none", wide ? "max-w-3xl" : "max-w-lg")}>
         {/*
          * Dialog provides role="dialog", aria-modal="true", and associates
          * the Heading below as aria-labelledby automatically.
          */}
-        <Dialog className="outline-none">
+        <Dialog className="flex min-h-0 flex-col outline-none">
           {({ close }) => (
             <>
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
                 <Heading
                   slot="title"
-                  className="text-lg font-semibold text-gray-900"
+                  className="text-base font-semibold text-gray-900 sm:text-lg"
                 >
                   {title}
                 </Heading>
@@ -54,13 +54,13 @@ export function Modal({ open, onClose, title, children, footer, wide }: ModalPro
               </div>
 
               {/* Body */}
-              <div className="max-h-[70vh] overflow-y-auto px-6 py-4">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
                 {children}
               </div>
 
               {/* Footer */}
               {footer && (
-                <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+                <div className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 px-4 py-4 sm:px-6">
                   {footer}
                 </div>
               )}
