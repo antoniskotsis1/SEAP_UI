@@ -1,23 +1,24 @@
-import { useState, useEffect } from "react";
-import { FiBarChart2, FiPlus, FiMap, FiMapPin } from "react-icons/fi";
+import { useState } from "react";
+import { FiBarChart2, FiPlus, FiMap } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { FormModal } from "@/components/ui/FormModal";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
+import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
+import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
+import { useLookupModal } from "@/hooks/useLookupModal";
 import { api } from "@/lib/api";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 import type {
   ProductionRecord,
   BusinessEntity,
-  BusinessEntityStatus,
-  BusinessEntityType,
   FieldListItem,
-  PaginatedResponse,
 } from "@/types";
 
 // ─── Extended row type ───────────────────────────────────────────────────────
@@ -29,56 +30,6 @@ type ProductionRow = ProductionRecord & {
   owner_name?: string;
   variety?: string;
 };
-
-// ─── Entity modal helpers ────────────────────────────────────────────────────
-
-const statusLabel: Record<BusinessEntityStatus, string> = {
-  LEAD: "Lead",
-  ACTIVE: "Ενεργός",
-  INACTIVE: "Ανενεργός",
-};
-const statusBadge: Record<BusinessEntityStatus, string> = {
-  LEAD: "badge-blue",
-  ACTIVE: "badge-green",
-  INACTIVE: "badge-gray",
-};
-const typeLabel: Record<BusinessEntityType, string> = {
-  INDIVIDUAL: "Ιδιώτης",
-  BUSINESS: "Επιχείρηση",
-};
-
-function InfoField({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-900">{value}</dd>
-    </div>
-  );
-}
-
-// ─── Field modal helpers ─────────────────────────────────────────────────────
-
-const methodLabel: Record<string, string> = {
-  PLANTING: "Φύτευση",
-  GRAFTING: "Εμβολιασμός",
-};
-const shapeLabel: Record<string, string> = {
-  FISHBONE: "Ψαροκόκαλο",
-  UMBRELLA: "Ομπρέλα",
-  MIX: "Μεικτό",
-  OTHER: "Άλλο",
-};
-
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="flex gap-3 py-1.5">
-      <dt className="w-44 shrink-0 text-sm text-gray-500">{label}</dt>
-      <dd className="text-sm font-medium text-gray-900">{value}</dd>
-    </div>
-  );
-}
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
@@ -265,45 +216,9 @@ export function ProductionListPage() {
   // ── Production breakdown modal ──────────────────────────────────────────
   const [detailRow, setDetailRow] = useState<ProductionRow | null>(null);
 
-  // ── Producer detail modal ───────────────────────────────────────────────
-  const [entityModal, setEntityModal] = useState<BusinessEntity | null>(null);
-  const [entityFields, setEntityFields] = useState<FieldListItem[]>([]);
-  const [entityFieldsLoading, setEntityFieldsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!entityModal) {
-      setEntityFields([]);
-      return;
-    }
-    setEntityFieldsLoading(true);
-    api
-      .list<FieldListItem>("/fields", {
-        business_entity_id: entityModal.id,
-        page_size: 100,
-        sort_by: "location_name",
-      })
-      .then((r: PaginatedResponse<FieldListItem>) => setEntityFields(r.data))
-      .catch(() => setEntityFields([]))
-      .finally(() => setEntityFieldsLoading(false));
-  }, [entityModal]);
-
-  // ── Field detail modal ──────────────────────────────────────────────────
-  const [fieldModal, setFieldModal] = useState<FieldListItem | null>(null);
-
-  // ── Click handlers ──────────────────────────────────────────────────────
-  const handleOwnerClick = async (row: ProductionRow) => {
-    if (!row.business_entity_id) return;
-    const res = await api.list<BusinessEntity>("/business-entities", {
-      id: row.business_entity_id,
-    });
-    if (res.data[0]) setEntityModal(res.data[0]);
-  };
-
-  const handleFieldClick = async (row: ProductionRow) => {
-    if (!row.field_id) return;
-    const res = await api.list<FieldListItem>("/fields", { id: row.field_id });
-    if (res.data[0]) setFieldModal(res.data[0]);
-  };
+  // ── Detail modals (owner / field lookups) ───────────────────────────────
+  const owner = useLookupModal<BusinessEntity>("/business-entities");
+  const field = useLookupModal<FieldListItem>("/fields");
 
   const isEmpty =
     !table.isLoading &&
@@ -363,7 +278,10 @@ export function ProductionListPage() {
   const set = (key: string, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const columns = buildColumns(handleOwnerClick, handleFieldClick);
+  const columns = buildColumns(
+    (row) => owner.openById(row.business_entity_id),
+    (row) => field.openById(row.field_id),
+  );
 
   return (
     <>
@@ -442,182 +360,19 @@ export function ProductionListPage() {
       </Modal>
 
       {/* ── Producer detail modal ──────────────────────────────────────────── */}
-      <Modal
-        open={!!entityModal}
-        onClose={() => setEntityModal(null)}
-        title={entityModal?.display_name ?? ""}
-        wide
-        footer={
-          <Button variant="secondary" onPress={() => setEntityModal(null)}>
-            Κλείσιμο
-          </Button>
-        }
-      >
-        {entityModal && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-2">
-              <span className={statusBadge[entityModal.status]}>
-                {statusLabel[entityModal.status]}
-              </span>
-              <span
-                className={
-                  entityModal.type === "BUSINESS" ? "badge-blue" : "badge-gray"
-                }
-              >
-                {typeLabel[entityModal.type]}
-              </span>
-            </div>
-
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-              <InfoField label="ΑΦΜ" value={entityModal.afm} />
-              <InfoField label="Τηλέφωνο" value={entityModal.phone} />
-              <InfoField label="Email" value={entityModal.email} />
-              <InfoField
-                label="Εκπρόσωπος"
-                value={entityModal.representative_name}
-              />
-              <InfoField label="Περιοχή" value={entityModal.region} />
-            </dl>
-
-            {entityModal.notes && (
-              <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
-                {entityModal.notes}
-              </p>
-            )}
-
-            <div className="border-t pt-4">
-              <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                Χωράφια
-                {!entityFieldsLoading && entityFields.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-gray-400">
-                    ({entityFields.length})
-                  </span>
-                )}
-              </h3>
-              {entityFieldsLoading ? (
-                <p className="text-sm text-gray-400">Φόρτωση…</p>
-              ) : entityFields.length === 0 ? (
-                <p className="text-sm text-gray-400">
-                  Δεν υπάρχουν καταχωρημένα χωράφια.
-                </p>
-              ) : (
-                <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-                  {entityFields.map((field) => (
-                    <div
-                      key={field.id}
-                      className="flex items-start justify-between px-4 py-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {field.location_name}
-                        </p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          {field.region && (
-                            <span className="flex items-center gap-1 text-xs text-gray-400">
-                              <FiMapPin className="h-3 w-3 shrink-0" />
-                              {field.region}
-                            </span>
-                          )}
-                          {field.planting_summary && (
-                            <span className="text-xs text-gray-400">
-                              {field.planting_summary}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {field.stremmata != null && (
-                        <span className="ml-6 shrink-0 text-sm tabular-nums text-gray-500">
-                          {field.stremmata} στρ.
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+      <ProducerDetailModal entity={owner.record} onClose={owner.close} />
 
       {/* ── Field detail modal ─────────────────────────────────────────────── */}
-      <Modal
-        open={!!fieldModal}
-        onClose={() => setFieldModal(null)}
-        title={fieldModal?.location_name ?? ""}
-        wide
-        footer={
-          <Button variant="secondary" onPress={() => setFieldModal(null)}>
-            Κλείσιμο
-          </Button>
-        }
-      >
-        {fieldModal && (
-          <dl className="divide-y divide-gray-100">
-            <DetailRow label="Παραγωγός" value={fieldModal.owner_name} />
-            <DetailRow label="Περιοχή" value={fieldModal.region} />
-            <DetailRow
-              label="Στρέμματα"
-              value={
-                fieldModal.stremmata != null
-                  ? String(fieldModal.stremmata)
-                  : null
-              }
-            />
-            <DetailRow
-              label="Αρ. Δέντρων / Ποικιλία"
-              value={fieldModal.planting_summary}
-            />
-            <DetailRow
-              label="Ημερομηνία Φύτευσης"
-              value={
-                fieldModal.planting_date
-                  ? formatDate(fieldModal.planting_date)
-                  : null
-              }
-            />
-            <DetailRow
-              label="Μέθοδος Φύτευσης"
-              value={
-                fieldModal.planting_method
-                  ? methodLabel[fieldModal.planting_method]
-                  : null
-              }
-            />
-            <DetailRow
-              label="Διαμόρφωση"
-              value={
-                fieldModal.training_shape
-                  ? shapeLabel[fieldModal.training_shape]
-                  : null
-              }
-            />
-            <DetailRow label="Υποκείμενο" value={fieldModal.rootstock} />
-            <DetailRow label="Αποστάσεις Φύτευσης" value={fieldModal.spacing} />
-            <DetailRow
-              label="Αρ. Ανάλυσης"
-              value={fieldModal.analysis_number}
-            />
-            <DetailRow label="GPS" value={fieldModal.gps_coordinates} />
-          </dl>
-        )}
-      </Modal>
+      <FieldDetailModal field={field.record} onClose={field.close} />
 
       {/* ── Create production modal ────────────────────────────────────────── */}
-      <Modal
+      <FormModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Νέα Καταγραφή Παραγωγής"
         wide
-        footer={
-          <>
-            <Button variant="secondary" onPress={() => setCreateOpen(false)}>
-              Ακύρωση
-            </Button>
-            <Button onPress={handleSubmit} isDisabled={saving}>
-              {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </Button>
-          </>
-        }
+        onSubmit={handleSubmit}
+        saving={saving}
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -704,7 +459,7 @@ export function ProductionListPage() {
             onChange={(v) => set("notes", v)}
           />
         </div>
-      </Modal>
+      </FormModal>
     </>
   );
 }

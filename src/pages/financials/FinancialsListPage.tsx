@@ -3,7 +3,7 @@ import { FiDollarSign, FiPlus } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Modal } from "@/components/ui/Modal";
+import { FormModal } from "@/components/ui/FormModal";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
@@ -12,26 +12,18 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import {
+  transactionTypeLabel,
+  transactionTypeBadge,
+  invoiceStatusLabel,
+  invoiceStatusBadge,
+} from "@/lib/labels";
 import type {
   FinancialTransaction,
   TransactionType,
   InvoiceStatus,
   FilterOption,
 } from "@/types";
-
-// ─── Labels ─────────────────────────────────────────────────────────────────
-
-const typeLabel: Record<TransactionType, string> = {
-  PAYMENT: "Πληρωμή",
-  DEBT: "Οφειλή",
-  OFFSET: "Συμψηφισμός",
-};
-const invoiceLabel: Record<InvoiceStatus, string> = {
-  ISSUED: "Εκδόθηκε",
-  NOT_ISSUED: "Δεν εκδόθηκε",
-  PARTIAL: "Μερική",
-};
 
 // ─── Extended row type ───────────────────────────────────────────────────────
 
@@ -53,14 +45,8 @@ const columns: Column<FinancialRow>[] = [
     header: "Τύπος",
     sortable: true,
     render: (row) => (
-      <span
-        className={cn(
-          row.type === "PAYMENT" && "badge-green",
-          row.type === "DEBT" && "badge-red",
-          row.type === "OFFSET" && "badge-blue"
-        )}
-      >
-        {typeLabel[row.type]}
+      <span className={transactionTypeBadge[row.type]}>
+        {transactionTypeLabel[row.type]}
       </span>
     ),
   },
@@ -87,14 +73,8 @@ const columns: Column<FinancialRow>[] = [
     key: "invoice_status",
     header: "Τιμολόγιο",
     render: (row) => (
-      <span
-        className={cn(
-          row.invoice_status === "ISSUED" && "badge-green",
-          row.invoice_status === "NOT_ISSUED" && "badge-gray",
-          row.invoice_status === "PARTIAL" && "badge-yellow"
-        )}
-      >
-        {invoiceLabel[row.invoice_status]}
+      <span className={invoiceStatusBadge[row.invoice_status]}>
+        {invoiceStatusLabel[row.invoice_status]}
       </span>
     ),
   },
@@ -266,20 +246,12 @@ export function FinancialsListPage() {
         />
       )}
 
-      <Modal
+      <FormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Νέα Συναλλαγή"
-        footer={
-          <>
-            <Button variant="secondary" onPress={() => setModalOpen(false)}>
-              Ακύρωση
-            </Button>
-            <Button onPress={handleSubmit} isDisabled={saving}>
-              {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </Button>
-          </>
-        }
+        onSubmit={handleSubmit}
+        saving={saving}
       >
         <div className="space-y-4">
           <TextField
@@ -380,7 +352,7 @@ export function FinancialsListPage() {
             onChange={(v) => set("notes", v)}
           />
         </div>
-      </Modal>
+      </FormModal>
     </>
   );
 }

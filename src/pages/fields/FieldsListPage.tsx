@@ -4,10 +4,12 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { FormModal } from "@/components/ui/FormModal";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
+import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatNumber, formatDate } from "@/lib/utils";
@@ -53,30 +55,6 @@ function parseDmsCoords(coords: string): { lat: number; lon: number } | null {
 function osmEmbedUrl(lat: number, lon: number): string {
   const d = 0.008;
   return `https://www.openstreetmap.org/export/embed.html?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&layer=mapnik&marker=${lat},${lon}`;
-}
-
-// ─── Detail helpers ──────────────────────────────────────────────────────────
-
-const methodLabel: Record<string, string> = {
-  PLANTING: "Φύτευση",
-  GRAFTING: "Εμβολιασμός",
-};
-
-const shapeLabel: Record<string, string> = {
-  FISHBONE: "Ψαροκόκαλο",
-  UMBRELLA: "Ομπρέλα",
-  MIX: "Μεικτό",
-  OTHER: "Άλλο",
-};
-
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  if (!value) return null;
-  return (
-    <div className="flex gap-3 py-1.5">
-      <dt className="w-44 shrink-0 text-sm text-gray-500">{label}</dt>
-      <dd className="text-sm font-medium text-gray-900">{value}</dd>
-    </div>
-  );
 }
 
 // ─── Column definitions ─────────────────────────────────────────────────────
@@ -280,40 +258,7 @@ export function FieldsListPage() {
       )}
 
       {/* ── Detail dialog ───────────────────────────────────────────── */}
-      <Modal
-        open={detailRow !== null}
-        onClose={() => setDetailRow(null)}
-        title={detailRow?.location_name ?? ""}
-        wide
-      >
-        {detailRow && (
-          <dl className="divide-y divide-gray-100">
-            <DetailRow label="Παραγωγός" value={detailRow.owner_name} />
-            <DetailRow label="Περιοχή" value={detailRow.region} />
-            <DetailRow
-              label="Στρέμματα"
-              value={detailRow.stremmata != null ? String(detailRow.stremmata) : null}
-            />
-            <DetailRow label="Αρ. Δέντρων / Ποικιλία" value={detailRow.planting_summary} />
-            <DetailRow
-              label="Ημερομηνία Φύτευσης"
-              value={detailRow.planting_date ? formatDate(detailRow.planting_date) : null}
-            />
-            <DetailRow
-              label="Μέθοδος Φύτευσης"
-              value={detailRow.planting_method ? methodLabel[detailRow.planting_method] : null}
-            />
-            <DetailRow
-              label="Σχήμα Διαμόρφωσης"
-              value={detailRow.training_shape ? shapeLabel[detailRow.training_shape] : null}
-            />
-            <DetailRow label="Υποκείμενο" value={detailRow.rootstock} />
-            <DetailRow label="Αποστάσεις Φύτευσης" value={detailRow.spacing} />
-            <DetailRow label="Αρ. Ανάλυσης" value={detailRow.analysis_number} />
-            <DetailRow label="GPS" value={detailRow.gps_coordinates} />
-          </dl>
-        )}
-      </Modal>
+      <FieldDetailModal field={detailRow} onClose={() => setDetailRow(null)} />
 
       {/* ── Map dialog ──────────────────────────────────────────────── */}
       <Modal
@@ -342,20 +287,12 @@ export function FieldsListPage() {
       </Modal>
 
       {/* ── Create dialog ────────────────────────────────────────────── */}
-      <Modal
+      <FormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Νέο Χωράφι"
-        footer={
-          <>
-            <Button variant="secondary" onPress={() => setModalOpen(false)}>
-              Ακύρωση
-            </Button>
-            <Button onPress={handleSubmit} isDisabled={saving}>
-              {saving ? "Αποθήκευση…" : "Δημιουργία"}
-            </Button>
-          </>
-        }
+        onSubmit={handleSubmit}
+        saving={saving}
       >
         <div className="space-y-4">
           <TextField
@@ -454,7 +391,7 @@ export function FieldsListPage() {
             placeholder="π.χ. 4x3"
           />
         </div>
-      </Modal>
+      </FormModal>
     </>
   );
 }
