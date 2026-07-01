@@ -8,6 +8,7 @@ interface UseTableQueryOptions {
   defaultSortBy?: string;
   defaultSortDir?: SortDirection;
   debounceMs?: number;
+  defaultFilters?: Record<string, string>;
 }
 
 interface UseTableQueryReturn<T> {
@@ -50,6 +51,7 @@ export function useTableQuery<T>(
     defaultSortBy,
     defaultSortDir = "asc",
     debounceMs = 300,
+    defaultFilters,
   } = options;
 
   const [data, setData] = useState<T[]>([]);
@@ -63,7 +65,7 @@ export function useTableQuery<T>(
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState<string | null>(defaultSortBy ?? null);
   const [sortDir, setSortDir] = useState<SortDirection>(defaultSortDir);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(defaultFilters ?? {});
 
   const abortRef = useRef<AbortController | null>(null);
 

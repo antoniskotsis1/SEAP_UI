@@ -6,13 +6,21 @@ export type BusinessEntityStatus = "LEAD" | "ACTIVE" | "INACTIVE";
 export type Variety = "V22" | "V76";
 export type Sex = "FEMALE" | "MALE";
 export type PlantingMethod = "PLANTING" | "GRAFTING";
-export type TrainingShape = "FISHBONE" | "UMBRELLA" | "OTHER";
+export type TrainingShape = "FISHBONE" | "UMBRELLA" | "OTHER" | "MIX";
 
 export type TransactionType = "PAYMENT" | "DEBT" | "OFFSET";
 export type InvoiceStatus = "ISSUED" | "NOT_ISSUED" | "PARTIAL";
 
 export type IssueSeverity = "LOW" | "MEDIUM" | "HIGH";
 export type IssueStatus = "OPEN" | "RESOLVED";
+
+export type PhotoCategory =
+  | "KLADEMA"
+  | "ARAIWMA_BLASTOU"
+  | "ARAIWMA_KARPOU"
+  | "KALOKAIRI_NERA"
+  | "PERIODOS_SUGKOMIDIS"
+  | "OTHER";
 
 // ─── Entities ────────────────────────────────────────────────────────────────
 
@@ -35,17 +43,16 @@ export interface Field {
   id: string;
   business_entity_id: string;
   location_name: string;
+  region?: string;
   stremmata?: number;
   gps_coordinates?: string;
 
-  // ── Planting metadata (Excel has these at field-row level) ─────────
-  planting_year?: number;
+  // ── Planting metadata ─────────────────────────────────────────────
+  planting_date?: string;
   planting_method?: PlantingMethod;
   training_shape?: TrainingShape;
   rootstock?: string;
   spacing?: string;
-  length_m?: number;
-  width_m?: number;
 
   /** Kept as quick-reference; full records live in FieldAnalysis */
   analysis_number?: string;
@@ -53,21 +60,22 @@ export interface Field {
   updated_at: string;
 }
 
-/**
- * A tree count bucket within a field for a given variety+sex combination.
- * Variety is ONLY set for FEMALE trees (V22 or V76).
- * MALE trees are pollinators — variety does not apply.
- *
- * Used area (m²) is derived, not stored:
- *   used_area = tree_count * (field.length_m * field.width_m) / 1000
- */
+export interface FieldListItem extends Field {
+  owner_name?: string;
+  planting_summary?: string;
+}
+
 export interface Planting {
   id: string;
   field_id: string;
   sex: Sex;
-  /** Required when sex === "FEMALE", must be undefined when sex === "MALE" */
   variety?: Variety;
   tree_count: number;
+  planting_year?: number;
+  planting_method?: PlantingMethod;
+  training_shape?: TrainingShape;
+  rootstock?: string;
+  spacing?: string;
   created_at: string;
   updated_at: string;
 }
@@ -89,10 +97,19 @@ export interface ProductionRecord {
   id: string;
   planting_id: string;
   harvest_year: number;
+  // Breakdown by category × size grade
+  cat_a_1kg: number;
+  cat_a_2kg: number;
+  cat_a_3kg: number;
+  cat_b_1kg: number;
+  cat_b_2kg: number;
+  cat_b_3kg: number;
+  spoiled_1kg: number;
+  spoiled_2kg: number;
+  spoiled_3kg: number;
+  // Pre-computed total (sum of all above)
   quantity_kg: number;
-  quantity_clean_kg?: number;
   is_estimate: boolean;
-  price_per_kg?: number;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -120,6 +137,7 @@ export interface FieldPhoto {
   id: string;
   field_id: string;
   url: string;
+  category: PhotoCategory;
   taken_at?: string;
   notes?: string;
   created_at: string;

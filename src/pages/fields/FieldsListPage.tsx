@@ -11,94 +11,162 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
 import { formatNumber, formatDate } from "@/lib/utils";
-import type { Field, PlantingMethod, TrainingShape } from "@/types";
+import type { PlantingMethod, TrainingShape } from "@/types";
 
-// ─── Labels ─────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-const methodLabel: Record<PlantingMethod, string> = {
+type FieldRow = {
+  id: string;
+  business_entity_id: string;
+  location_name: string;
+  region?: string;
+  stremmata?: number;
+  gps_coordinates?: string;
+  planting_date?: string;
+  planting_method?: PlantingMethod;
+  training_shape?: TrainingShape;
+  rootstock?: string;
+  spacing?: string;
+  analysis_number?: string;
+  owner_name?: string;
+  planting_summary?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Map helpers ─────────────────────────────────────────────────────────────
+
+function parseDmsCoords(coords: string): { lat: number; lon: number } | null {
+  const m = coords.match(
+    /(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])/,
+  );
+  if (!m) return null;
+  const lat =
+    (Number(m[1]) + Number(m[2]) / 60 + Number(m[3]) / 3600) *
+    (m[4] === "S" ? -1 : 1);
+  const lon =
+    (Number(m[5]) + Number(m[6]) / 60 + Number(m[7]) / 3600) *
+    (m[8] === "W" ? -1 : 1);
+  return { lat, lon };
+}
+
+function osmEmbedUrl(lat: number, lon: number): string {
+  const d = 0.008;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&layer=mapnik&marker=${lat},${lon}`;
+}
+
+// ─── Detail helpers ──────────────────────────────────────────────────────────
+
+const methodLabel: Record<string, string> = {
   PLANTING: "Φύτευση",
   GRAFTING: "Εμβολιασμός",
 };
-const shapeLabel: Record<TrainingShape, string> = {
+
+const shapeLabel: Record<string, string> = {
   FISHBONE: "Ψαροκόκαλο",
   UMBRELLA: "Ομπρέλα",
+  MIX: "Μεικτό",
   OTHER: "Άλλο",
 };
 
+function DetailRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex gap-3 py-1.5">
+      <dt className="w-44 shrink-0 text-sm text-gray-500">{label}</dt>
+      <dd className="text-sm font-medium text-gray-900">{value}</dd>
+    </div>
+  );
+}
+
 // ─── Column definitions ─────────────────────────────────────────────────────
 
-const columns: Column<Field>[] = [
-  {
-    key: "location_name",
-    header: "Τοποθεσία",
-    sortable: true,
-    render: (row) => (
-      <span className="font-medium text-gray-900">{row.location_name}</span>
-    ),
-  },
-  {
-    key: "stremmata",
-    header: "Στρέμματα",
-    sortable: true,
-    render: (row) => formatNumber(row.stremmata),
-  },
-  {
-    key: "planting_year",
-    header: "Έτος Φύτ.",
-    sortable: true,
-    render: (row) => (row.planting_year ? String(row.planting_year) : "—"),
-  },
-  {
-    key: "planting_method",
-    header: "Μέθοδος",
-    render: (row) =>
-      row.planting_method ? methodLabel[row.planting_method] : "—",
-  },
-  {
-    key: "training_shape",
-    header: "Σχήμα",
-    render: (row) =>
-      row.training_shape ? shapeLabel[row.training_shape] : "—",
-  },
-  {
-    key: "rootstock",
-    header: "Υποκείμενο",
-    render: (row) => row.rootstock || "—",
-  },
-  {
-    key: "spacing",
-    header: "Αποστάσεις",
-    render: (row) => row.spacing || "—",
-  },
-  {
-    key: "created_at",
-    header: "Δημιουργία",
-    sortable: true,
-    render: (row) => formatDate(row.created_at),
-  },
-];
+function buildColumns(
+  onDetailClick: (row: FieldRow) => void,
+  onMapClick: (row: FieldRow) => void
+): Column<FieldRow>[] {
+  return [
+    {
+      key: "location_name",
+      header: "Όνομα",
+      sortable: true,
+      render: (row) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDetailClick(row);
+          }}
+          className="text-left font-medium text-brand-600 hover:underline"
+        >
+          {row.location_name}
+        </button>
+      ),
+    },
+    {
+      key: "region",
+      header: "Περιοχή",
+      sortable: true,
+      render: (row) => {
+        const coords = row.gps_coordinates
+          ? parseDmsCoords(row.gps_coordinates)
+          : null;
+        const label = row.region || "—";
+        if (!coords) return <span>{label}</span>;
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMapClick(row);
+            }}
+            className="text-left text-brand-600 hover:underline"
+          >
+            {label}
+          </button>
+        );
+      },
+    },
+    {
+      key: "stremmata",
+      header: "Στρέμματα",
+      sortable: true,
+      render: (row) =>
+        row.stremmata != null ? formatNumber(row.stremmata) : "—",
+    },
+    {
+      key: "planting_summary",
+      header: "Αρ. Δέντρων / Ποικιλία",
+      render: (row) => row.planting_summary || "—",
+    },
+    {
+      key: "planting_date",
+      header: "Ημ/νία Φύτευσης",
+      sortable: true,
+      render: (row) =>
+        row.planting_date ? formatDate(row.planting_date) : "—",
+    },
+  ];
+}
 
 // ─── Initial form state ─────────────────────────────────────────────────────
 
 const emptyForm = {
   business_entity_id: "",
   location_name: "",
+  region: "",
   stremmata: "",
   gps_coordinates: "",
   analysis_number: "",
-  planting_year: "",
+  planting_date: "",
   planting_method: "" as PlantingMethod | "",
   training_shape: "" as TrainingShape | "",
   rootstock: "",
   spacing: "",
-  length_m: "",
-  width_m: "",
 };
 
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FieldsListPage() {
-  const table = useTableQuery<Field>({
+  const table = useTableQuery<FieldRow>({
     endpoint: "/fields",
     defaultSortBy: "location_name",
   });
@@ -106,6 +174,8 @@ export function FieldsListPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [mapRow, setMapRow] = useState<FieldRow | null>(null);
+  const [detailRow, setDetailRow] = useState<FieldRow | null>(null);
 
   const isEmpty =
     !table.isLoading &&
@@ -132,16 +202,15 @@ export function FieldsListPage() {
       await api.post("/fields", {
         business_entity_id: form.business_entity_id,
         location_name: form.location_name,
+        region: form.region || undefined,
         stremmata: form.stremmata ? Number(form.stremmata) : undefined,
         gps_coordinates: form.gps_coordinates || undefined,
         analysis_number: form.analysis_number || undefined,
-        planting_year: form.planting_year ? Number(form.planting_year) : undefined,
+        planting_date: form.planting_date || undefined,
         planting_method: form.planting_method || undefined,
         training_shape: form.training_shape || undefined,
         rootstock: form.rootstock || undefined,
         spacing: form.spacing || undefined,
-        length_m: form.length_m ? Number(form.length_m) : undefined,
-        width_m: form.width_m ? Number(form.width_m) : undefined,
       });
       toast.success("Το χωράφι δημιουργήθηκε");
       setModalOpen(false);
@@ -155,6 +224,13 @@ export function FieldsListPage() {
 
   const set = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const columns = buildColumns(setDetailRow, setMapRow);
+
+  // Map dialog coords
+  const mapCoords = mapRow?.gps_coordinates
+    ? parseDmsCoords(mapRow.gps_coordinates)
+    : null;
 
   return (
     <>
@@ -190,7 +266,7 @@ export function FieldsListPage() {
           error={table.error}
           search={table.search}
           onSearchChange={table.setSearch}
-          searchPlaceholder="Αναζήτηση τοποθεσίας…"
+          searchPlaceholder="Αναζήτηση τοποθεσίας, περιοχής…"
           sortBy={table.sortBy}
           sortDir={table.sortDir}
           onSort={table.toggleSort}
@@ -203,6 +279,69 @@ export function FieldsListPage() {
         />
       )}
 
+      {/* ── Detail dialog ───────────────────────────────────────────── */}
+      <Modal
+        open={detailRow !== null}
+        onClose={() => setDetailRow(null)}
+        title={detailRow?.location_name ?? ""}
+        wide
+      >
+        {detailRow && (
+          <dl className="divide-y divide-gray-100">
+            <DetailRow label="Παραγωγός" value={detailRow.owner_name} />
+            <DetailRow label="Περιοχή" value={detailRow.region} />
+            <DetailRow
+              label="Στρέμματα"
+              value={detailRow.stremmata != null ? String(detailRow.stremmata) : null}
+            />
+            <DetailRow label="Αρ. Δέντρων / Ποικιλία" value={detailRow.planting_summary} />
+            <DetailRow
+              label="Ημερομηνία Φύτευσης"
+              value={detailRow.planting_date ? formatDate(detailRow.planting_date) : null}
+            />
+            <DetailRow
+              label="Μέθοδος Φύτευσης"
+              value={detailRow.planting_method ? methodLabel[detailRow.planting_method] : null}
+            />
+            <DetailRow
+              label="Σχήμα Διαμόρφωσης"
+              value={detailRow.training_shape ? shapeLabel[detailRow.training_shape] : null}
+            />
+            <DetailRow label="Υποκείμενο" value={detailRow.rootstock} />
+            <DetailRow label="Αποστάσεις Φύτευσης" value={detailRow.spacing} />
+            <DetailRow label="Αρ. Ανάλυσης" value={detailRow.analysis_number} />
+            <DetailRow label="GPS" value={detailRow.gps_coordinates} />
+          </dl>
+        )}
+      </Modal>
+
+      {/* ── Map dialog ──────────────────────────────────────────────── */}
+      <Modal
+        open={mapRow !== null}
+        onClose={() => setMapRow(null)}
+        title={
+          mapRow
+            ? `${mapRow.location_name}${mapRow.region ? ` — ${mapRow.region}` : ""}`
+            : ""
+        }
+        wide
+      >
+        {mapCoords ? (
+          <iframe
+            src={osmEmbedUrl(mapCoords.lat, mapCoords.lon)}
+            width="100%"
+            height="420"
+            style={{ border: 0, borderRadius: 8 }}
+            title="Χάρτης τοποθεσίας"
+          />
+        ) : (
+          <p className="py-8 text-center text-sm text-gray-500">
+            Δεν υπάρχουν διαθέσιμες συντεταγμένες για αυτή την τοποθεσία.
+          </p>
+        )}
+      </Modal>
+
+      {/* ── Create dialog ────────────────────────────────────────────── */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -227,13 +366,21 @@ export function FieldsListPage() {
             placeholder="ID παραγωγού"
           />
 
-          <TextField
-            label="Τοποθεσία"
-            isRequired
-            value={form.location_name}
-            onChange={(v) => set("location_name", v)}
-            placeholder="π.χ. Χωράφι Αμαλιάδας"
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Τοποθεσία"
+              isRequired
+              value={form.location_name}
+              onChange={(v) => set("location_name", v)}
+              placeholder="π.χ. Χωράφι Αμαλιάδας"
+            />
+            <TextField
+              label="Περιοχή"
+              value={form.region}
+              onChange={(v) => set("region", v)}
+              placeholder="π.χ. Άρτα"
+            />
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <TextField
@@ -254,7 +401,7 @@ export function FieldsListPage() {
             label="GPS Συντεταγμένες"
             value={form.gps_coordinates}
             onChange={(v) => set("gps_coordinates", v)}
-            placeholder="π.χ. 37.7950, 21.3700"
+            placeholder={`"π.χ. 39°07'25.4N 20°55'11.1E"`}
           />
 
           <hr className="border-gray-200" />
@@ -264,10 +411,10 @@ export function FieldsListPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <TextField
-              label="Έτος Φύτευσης"
-              value={form.planting_year}
-              onChange={(v) => set("planting_year", v)}
-              inputProps={{ type: "number" }}
+              label="Ημερομηνία Φύτευσης"
+              value={form.planting_date}
+              onChange={(v) => set("planting_date", v)}
+              inputProps={{ type: "date" }}
             />
             <SelectField
               label="Μέθοδος"
@@ -289,6 +436,7 @@ export function FieldsListPage() {
               <option value="">—</option>
               <option value="FISHBONE">Ψαροκόκαλο</option>
               <option value="UMBRELLA">Ομπρέλα</option>
+              <option value="MIX">Μεικτό</option>
               <option value="OTHER">Άλλο</option>
             </SelectField>
             <TextField
@@ -299,26 +447,12 @@ export function FieldsListPage() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <TextField
-              label="Αποστάσεις"
-              value={form.spacing}
-              onChange={(v) => set("spacing", v)}
-              placeholder="π.χ. 5Χ3"
-            />
-            <TextField
-              label="Μήκος (m)"
-              value={form.length_m}
-              onChange={(v) => set("length_m", v)}
-              inputProps={{ type: "number", step: "0.01" }}
-            />
-            <TextField
-              label="Πλάτος (m)"
-              value={form.width_m}
-              onChange={(v) => set("width_m", v)}
-              inputProps={{ type: "number", step: "0.01" }}
-            />
-          </div>
+          <TextField
+            label="Αποστάσεις Φύτευσης"
+            value={form.spacing}
+            onChange={(v) => set("spacing", v)}
+            placeholder="π.χ. 4x3"
+          />
         </div>
       </Modal>
     </>
