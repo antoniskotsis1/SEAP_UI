@@ -72,6 +72,8 @@ export interface Field {
 
   /** Derived display summary of the field's plantings (trees × variety). */
   planting_summary?: string;
+  /** Derived count of photos attached to this field (for the photos list). */
+  photo_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -182,11 +184,15 @@ export interface FieldPhoto {
   taken_at?: string;
   notes?: string;
   created_at: string;
+  /** Populated (server-joined) when this photo documents a problem. */
+  issue?: FieldIssue;
 }
 
 export interface FieldIssue {
   id: string;
   field_id: string;
+  /** The photo this issue was reported from. Every issue is tied to a photo. */
+  photo_id?: string;
   title: string;
   description: string;
   severity: IssueSeverity;

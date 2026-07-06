@@ -112,10 +112,10 @@ export const PHOTO_CATEGORY_ORDER: PhotoCategory[] = [
 ];
 export const photoCategoryLabel: Record<PhotoCategory, string> = {
   KLADEMA: "Κλάδεμα",
-  ARAIWMA_BLASTOU: "Αραίωμα Βλαστού",
+  ARAIWMA_BLASTOU: "Αραίωμα Βλαστού-Μπουμπούκι",
   ARAIWMA_KARPOU: "Αραίωμα Καρπού",
-  KALOKAIRI_NERA: "Καλοκαίρι-Νερά",
-  PERIODOS_SUGKOMIDIS: "Περίοδος Συγκομιδής",
+  KALOKAIRI_NERA: "Καλοκαιρινή Επίβλεψη",
+  PERIODOS_SUGKOMIDIS: "Συγκομιδή",
   OTHER: "Άλλο",
 };
 export const photoCategoryBadge: Record<PhotoCategory, string> = {
@@ -126,3 +126,12 @@ export const photoCategoryBadge: Record<PhotoCategory, string> = {
   PERIODOS_SUGKOMIDIS: "badge-red",
   OTHER: "badge-gray",
 };
+
+/**
+ * Border color wrapping a photo thumbnail, signalling its issue state:
+ * green = no problem, yellow = low/medium problem, red = severe problem.
+ */
+export function photoIssueBorder(issue?: { severity: IssueSeverity }): string {
+  if (!issue) return "border-green-500";
+  return issue.severity === "HIGH" ? "border-red-500" : "border-yellow-400";
+}
