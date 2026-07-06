@@ -5,7 +5,6 @@
 import type {
   ProducerStatus,
   Variety,
-  Sex,
   PlantingMethod,
   TrainingShape,
   TransactionType,
@@ -30,11 +29,18 @@ export const producerStatusBadge: Record<ProducerStatus, string> = {
 
 // ─── Planting ────────────────────────────────────────────────────────────────
 
-export const varietyLabel: Record<Variety, string> = { AC22: "AC22", AC76: "AC76" };
-export const sexLabel: Record<Sex, string> = {
-  FEMALE: "Θηλυκό",
+export const varietyLabel: Record<Variety, string> = {
   MALE: "Αρσενικό",
+  AC22: "AC22",
+  AC76: "AC76",
 };
+export const varietyBadge: Record<Variety, string> = {
+  MALE: "badge-gray",
+  AC22: "badge-blue",
+  AC76: "badge-blue",
+};
+/** Display order for the three varieties in filters, forms and badges. */
+export const VARIETY_ORDER: Variety[] = ["AC22", "AC76", "MALE"];
 
 // ─── Field ───────────────────────────────────────────────────────────────────
 
