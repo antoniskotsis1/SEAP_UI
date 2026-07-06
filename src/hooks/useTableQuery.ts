@@ -9,6 +9,11 @@ interface UseTableQueryOptions {
   defaultSortDir?: SortDirection;
   debounceMs?: number;
   defaultFilters?: Record<string, string>;
+  /**
+   * Query params always sent with every request and never cleared by
+   * `clearFilters` — for fixed constraints like a tab's `is_estimate` flag.
+   */
+  staticParams?: Record<string, string>;
 }
 
 interface UseTableQueryReturn<T> {
@@ -52,7 +57,11 @@ export function useTableQuery<T>(
     defaultSortDir = "asc",
     debounceMs = 300,
     defaultFilters,
+    staticParams,
   } = options;
+
+  // Stable key so an inline `staticParams` object literal doesn't re-trigger fetches.
+  const staticParamsKey = JSON.stringify(staticParams ?? {});
 
   const [data, setData] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -124,6 +133,7 @@ export function useTableQuery<T>(
     const params: TableQueryParams = {
       page,
       page_size: pageSize,
+      ...(JSON.parse(staticParamsKey) as Record<string, string>),
       ...filters,
     };
     if (debouncedSearch) params.search = debouncedSearch;
@@ -153,7 +163,7 @@ export function useTableQuery<T>(
         setIsLoading(false);
       }
     }
-  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortDir, filters]);
+  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortDir, filters, staticParamsKey]);
 
   useEffect(() => {
     fetchData();
