@@ -23,6 +23,8 @@ import type {
   FieldPhoto,
   FieldIssue,
   PhotoCategory,
+  IssueSeverity,
+  IssueStatus,
   PaginatedResponse,
 } from "@/types";
 
@@ -447,30 +449,28 @@ function generatePhotos(fields: Field[]): FieldPhoto[] {
   return photos;
 }
 
-function generateIssues(fields: Field[]): FieldIssue[] {
+// Issues are always tied to a photo: a subset of photos document a problem.
+function generateIssues(photos: FieldPhoto[]): FieldIssue[] {
   const issues: FieldIssue[] = [];
-  fields.forEach((f) => {
-    if (Math.random() > 0.35) return; // ~35% of fields have issues
-    const numIssues = randInt(1, 2);
-    for (let i = 0; i < numIssues; i++) {
-      const reported = pastDate(1);
-      const resolved = Math.random() > 0.5;
-      const idx = randInt(0, ISSUE_TITLES.length - 1);
-      issues.push({
-        id: uid(),
-        field_id: f.id,
-        title: ISSUE_TITLES[idx]!,
-        description: ISSUE_DESCRIPTIONS[idx]!,
-        severity: pick(["LOW", "MEDIUM", "HIGH"]),
-        status: resolved ? "RESOLVED" : "OPEN",
-        reported_at: reported.slice(0, 10),
-        resolved_at: resolved
-          ? isoDate(2025, randInt(1, 3), randInt(1, 28))
-          : undefined,
-        created_at: reported,
-        updated_at: isoNow(),
-      });
-    }
+  photos.forEach((photo) => {
+    if (Math.random() > 0.25) return; // ~25% of photos document a problem
+    const resolved = Math.random() > 0.5;
+    const idx = randInt(0, ISSUE_TITLES.length - 1);
+    issues.push({
+      id: uid(),
+      field_id: photo.field_id,
+      photo_id: photo.id,
+      title: ISSUE_TITLES[idx]!,
+      description: ISSUE_DESCRIPTIONS[idx]!,
+      severity: pick(["LOW", "MEDIUM", "HIGH"]),
+      status: resolved ? "RESOLVED" : "OPEN",
+      reported_at: photo.taken_at ?? pastDate(1).slice(0, 10),
+      resolved_at: resolved
+        ? isoDate(2025, randInt(1, 3), randInt(1, 28))
+        : undefined,
+      created_at: photo.created_at,
+      updated_at: isoNow(),
+    });
   });
   return issues;
 }
@@ -484,7 +484,7 @@ const production = generateProduction(fields, plantings);
 const settlements = generateSettlements(fields);
 const financials = generateFinancials(producers);
 const photos = generatePhotos(fields);
-const issues = generateIssues(fields);
+const issues = generateIssues(photos);
 
 // Build lookup maps for joined display names
 const producerMap = new Map(producers.map((e) => [e.id, e]));
@@ -519,7 +519,7 @@ export type SettlementWithContext = Settlement & {
 };
 export type FinancialWithOwner = FinancialTransaction & { owner_name: string };
 export type PhotoWithField = FieldPhoto & { field_name: string; owner_name: string; producer_id: string };
-export type IssueWithField = FieldIssue & { field_name: string; owner_name: string; producer_id: string };
+export type IssueWithField = FieldIssue & { field_name: string; owner_name: string; producer_id: string; photo_url?: string };
 
 const stremmataByProducerId = new Map<string, number>();
 fields.forEach((f) => {
@@ -535,6 +535,10 @@ function enrichProducers(): ProducerListItem[] {
 }
 
 function enrichFields(): Field[] {
+  const photoCountByField = new Map<string, number>();
+  photos.forEach((p) =>
+    photoCountByField.set(p.field_id, (photoCountByField.get(p.field_id) ?? 0) + 1)
+  );
   return fields.map((f) => {
     const fp = plantingsByFieldId.get(f.id) ?? [];
     const parts: string[] = [];
@@ -547,6 +551,7 @@ function enrichFields(): Field[] {
     return {
       ...f,
       planting_summary: parts.length > 0 ? parts.join(" + ") : undefined,
+      photo_count: photoCountByField.get(f.id) ?? 0,
     };
   });
 }
@@ -603,10 +608,14 @@ function enrichFinancials(): FinancialWithOwner[] {
 }
 
 function enrichPhotos(): PhotoWithField[] {
+  const issueByPhoto = new Map(
+    issues.filter((i) => i.photo_id).map((i) => [i.photo_id!, i])
+  );
   return photos.map((p) => {
     const field = fieldMap.get(p.field_id);
     return {
       ...p,
+      issue: issueByPhoto.get(p.id),
       producer_id: field?.producer_id ?? "",
       field_name: field?.location_name ?? "—",
       owner_name: field
@@ -617,6 +626,7 @@ function enrichPhotos(): PhotoWithField[] {
 }
 
 function enrichIssues(): IssueWithField[] {
+  const photoById = new Map(photos.map((p) => [p.id, p]));
   return issues.map((i) => {
     const field = fieldMap.get(i.field_id);
     return {
@@ -626,6 +636,7 @@ function enrichIssues(): IssueWithField[] {
       owner_name: field
         ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
+      photo_url: i.photo_id ? photoById.get(i.photo_id)?.url : undefined,
     };
   });
 }
@@ -1033,6 +1044,94 @@ function updateSettlement(id: string, body: SettlementInput): Settlement | null 
   return existing;
 }
 
+// ─── Field photo (+ tied issue) mutations ────────────────────────────────────
+
+/** Issue fields a client may set when reporting a problem from a photo. */
+type IssueInput = Partial<
+  Pick<FieldIssue, "title" | "description" | "severity" | "status" | "reported_at">
+>;
+
+/**
+ * A photo upload. When `has_issue` is set, the embedded `issue` is created and
+ * linked back to the photo, so an issue is always tied to a photo.
+ */
+type PhotoInput = Partial<
+  Pick<FieldPhoto, "field_id" | "url" | "category" | "taken_at" | "notes">
+> & {
+  has_issue?: boolean;
+  issue?: IssueInput;
+};
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function upsertPhotoIssue(photo: FieldPhoto, src: IssueInput): FieldIssue {
+  const now = new Date().toISOString();
+  const existing = issues.find((i) => i.photo_id === photo.id);
+  if (existing) {
+    if (src.title !== undefined) existing.title = src.title.trim();
+    if (src.description !== undefined) existing.description = src.description.trim();
+    if (src.severity) existing.severity = src.severity as IssueSeverity;
+    if (src.status) {
+      existing.status = src.status as IssueStatus;
+      existing.resolved_at =
+        src.status === "RESOLVED" ? existing.resolved_at ?? today() : undefined;
+    }
+    existing.updated_at = now;
+    return existing;
+  }
+  const issue: FieldIssue = {
+    id: uid(),
+    field_id: photo.field_id,
+    photo_id: photo.id,
+    title: src.title?.trim() ?? "",
+    description: src.description?.trim() ?? "",
+    severity: (src.severity as IssueSeverity) ?? "MEDIUM",
+    status: (src.status as IssueStatus) ?? "OPEN",
+    reported_at: src.reported_at || photo.taken_at || today(),
+    resolved_at: src.status === "RESOLVED" ? today() : undefined,
+    created_at: now,
+    updated_at: now,
+  };
+  issues.push(issue);
+  return issue;
+}
+
+function removePhotoIssue(photoId: string) {
+  const idx = issues.findIndex((i) => i.photo_id === photoId);
+  if (idx >= 0) issues.splice(idx, 1);
+}
+
+function createPhoto(body: PhotoInput): FieldPhoto {
+  const now = new Date().toISOString();
+  const photo: FieldPhoto = {
+    id: uid(),
+    field_id: body.field_id ?? "",
+    url: body.url?.trim() ?? "",
+    category: (body.category as PhotoCategory) ?? "OTHER",
+    taken_at: blankToUndef(body.taken_at),
+    notes: blankToUndef(body.notes),
+    created_at: now,
+  };
+  photos.push(photo);
+  const issue = body.has_issue ? upsertPhotoIssue(photo, body.issue ?? {}) : undefined;
+  return { ...photo, issue };
+}
+
+function updatePhoto(id: string, body: PhotoInput): FieldPhoto | null {
+  const existing = photos.find((p) => p.id === id);
+  if (!existing) return null;
+  if (body.notes !== undefined) existing.notes = blankToUndef(body.notes);
+  if (body.category) existing.category = body.category as PhotoCategory;
+  if (body.taken_at !== undefined) existing.taken_at = blankToUndef(body.taken_at);
+  if (body.has_issue === true) {
+    upsertPhotoIssue(existing, body.issue ?? {});
+  } else if (body.has_issue === false) {
+    removePhotoIssue(id);
+  }
+  const issue = issues.find((i) => i.photo_id === id);
+  return { ...existing, issue };
+}
+
 // ─── Intercept fetch ─────────────────────────────────────────────────────────
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -1113,6 +1212,17 @@ export function setupMockApi() {
       const settlementEdit = path?.match(/^\/api\/settlements\/([^/]+)$/);
       if (settlementEdit && (method === "PATCH" || method === "PUT")) {
         const updated = updateSettlement(settlementEdit[1]!, body as SettlementInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
+      if (path === "/api/field-photos" && method === "POST") {
+        return jsonResponse(createPhoto(body as PhotoInput), 201);
+      }
+      const photoEdit = path?.match(/^\/api\/field-photos\/([^/]+)$/);
+      if (photoEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updatePhoto(photoEdit[1]!, body as PhotoInput);
         return updated
           ? jsonResponse(updated)
           : jsonResponse({ message: "Not found" }, 404);

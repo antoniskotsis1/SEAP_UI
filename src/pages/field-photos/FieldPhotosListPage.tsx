@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FiCamera, FiPlus } from "react-icons/fi";
+import { FiCamera, FiPlus, FiAlertTriangle, FiUpload, FiX, FiUsers } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -12,36 +12,41 @@ import { SelectField } from "@/components/ui/SelectField";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { api } from "@/lib/api";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import {
   PHOTO_CATEGORY_ORDER,
   photoCategoryLabel,
   photoCategoryBadge,
+  photoIssueBorder,
+  severityLabel,
+  severityBadge,
+  issueStatusLabel,
+  issueStatusBadge,
 } from "@/lib/labels";
 import type {
   Field,
   FieldPhoto,
   PhotoCategory,
+  IssueSeverity,
+  IssueStatus,
 } from "@/types";
 
 // ─── Field list columns ──────────────────────────────────────────────────────
 
 const columns: Column<Field>[] = [
   {
-    key: "location_name",
-    header: "Χωράφι",
+    key: "producer_name",
+    header: "Παραγωγός / Χωράφι",
     sortable: true,
     render: (row) => (
-      <span className="font-medium text-gray-900 transition-colors group-hover:text-brand-600">
-        {row.location_name}
-      </span>
+      <div className="min-w-0">
+        <p className="flex items-center gap-1 truncate font-medium text-brand-600">
+          <FiUsers className="h-3 w-3 shrink-0" />
+          {row.producer_name || "—"}
+        </p>
+        <p className="truncate text-xs text-gray-400">{row.location_name || "—"}</p>
+      </div>
     ),
-  },
-  {
-    key: "producer_name",
-    header: "Παραγωγός",
-    sortable: true,
-    render: (row) => row.producer_name || "—",
   },
   {
     key: "region",
@@ -50,11 +55,16 @@ const columns: Column<Field>[] = [
     render: (row) => row.region || "—",
   },
   {
-    key: "stremmata",
-    header: "Στρέμματα",
+    key: "photo_count",
+    header: "Φωτογραφίες",
     sortable: true,
-    render: (row) =>
-      row.stremmata != null ? formatNumber(row.stremmata) : "—",
+    width: "minmax(120px, 0.6fr)",
+    render: (row) => (
+      <span className="inline-flex items-center gap-1.5 text-gray-700">
+        <FiCamera className="h-3.5 w-3.5 text-gray-400" />
+        {row.photo_count ?? 0}
+      </span>
+    ),
   },
 ];
 
@@ -66,6 +76,11 @@ const emptyForm = {
   url: "",
   taken_at: "",
   notes: "",
+  has_issue: false,
+  issue_title: "",
+  issue_description: "",
+  issue_severity: "MEDIUM" as IssueSeverity,
+  issue_status: "OPEN" as IssueStatus,
 };
 
 // ─── Page component ─────────────────────────────────────────────────────────
@@ -100,14 +115,72 @@ export function FieldPhotosListPage() {
     {} as Record<PhotoCategory, FieldPhoto[]>,
   );
 
+  // ── Lightbox (single photo, full-res + editable comments) ─────────────────
+  const [lightbox, setLightbox] = useState<FieldPhoto | null>(null);
+  const [comment, setComment] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
+
+  const openLightbox = (photo: FieldPhoto) => {
+    setLightbox(photo);
+    setComment(photo.notes ?? "");
+  };
+
+  const saveComment = async () => {
+    if (!lightbox) return;
+    setSavingComment(true);
+    try {
+      await api.patch(`/field-photos/${lightbox.id}`, { notes: comment });
+      toast.success("Τα σχόλια αποθηκεύτηκαν");
+      setFieldPhotos((prev) =>
+        prev.map((p) => (p.id === lightbox.id ? { ...p, notes: comment } : p)),
+      );
+      setLightbox((prev) => (prev ? { ...prev, notes: comment } : prev));
+    } catch {
+      toast.error("Αποτυχία αποθήκευσης");
+    } finally {
+      setSavingComment(false);
+    }
+  };
+
   // ── Upload modal ──────────────────────────────────────────────────────────
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [fileName, setFileName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [fields, setFields] = useState<Field[]>([]);
+
+  // Fields for the location dropdown.
+  useEffect(() => {
+    api
+      .list<Field>("/fields", { page_size: 1000, sort_by: "location_name" })
+      .then((r) => setFields(r.data))
+      .catch(() => setFields([]));
+  }, []);
 
   const openCreate = () => {
     setForm(emptyForm);
+    setFileName("");
     setCreateOpen(true);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Επιλέξτε αρχείο εικόνας");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      set("url", reader.result as string);
+      setFileName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearFile = () => {
+    set("url", "");
+    setFileName("");
   };
 
   const handleSubmit = async () => {
@@ -123,13 +196,38 @@ export function FieldPhotosListPage() {
       toast.error("Το URL είναι υποχρεωτικό");
       return;
     }
+    if (form.has_issue && !form.issue_title.trim()) {
+      toast.error("Ο τίτλος του προβλήματος είναι υποχρεωτικός");
+      return;
+    }
+    if (form.has_issue && !form.issue_description.trim()) {
+      toast.error("Η περιγραφή του προβλήματος είναι υποχρεωτική");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/field-photos", {
-        ...form,
+        field_id: form.field_id,
+        category: form.category,
+        url: form.url,
         taken_at: form.taken_at || undefined,
+        notes: form.notes || undefined,
+        has_issue: form.has_issue,
+        issue: form.has_issue
+          ? {
+              title: form.issue_title,
+              description: form.issue_description,
+              severity: form.issue_severity,
+              status: form.issue_status,
+              reported_at: form.taken_at || undefined,
+            }
+          : undefined,
       });
-      toast.success("Η φωτογραφία προστέθηκε");
+      toast.success(
+        form.has_issue
+          ? "Η φωτογραφία και το πρόβλημα καταχωρήθηκαν"
+          : "Η φωτογραφία προστέθηκε",
+      );
       setCreateOpen(false);
       table.refetch();
       if (selectedField && form.field_id === selectedField.id) {
@@ -142,7 +240,7 @@ export function FieldPhotosListPage() {
     }
   };
 
-  const set = (key: string, value: string) =>
+  const set = (key: string, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const isEmpty =
@@ -225,17 +323,30 @@ export function FieldPhotosListPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       {photos.map((photo) => (
-                        <div
+                        <button
                           key={photo.id}
-                          className="overflow-hidden rounded-lg border border-gray-200"
+                          type="button"
+                          onClick={() => openLightbox(photo)}
+                          className={cn(
+                            "group overflow-hidden rounded-lg border-4 text-left transition hover:opacity-95",
+                            photoIssueBorder(photo.issue),
+                          )}
                         >
-                          <img
-                            src={photo.url}
-                            alt={photo.notes ?? ""}
-                            className="h-36 w-full object-cover"
-                            loading="lazy"
-                          />
-                          <div className="px-2 py-1.5">
+                          <div className="relative">
+                            <img
+                              src={photo.url}
+                              alt={photo.notes ?? ""}
+                              className="h-36 w-full object-cover"
+                              loading="lazy"
+                            />
+                            {photo.issue && (
+                              <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 shadow-sm">
+                                <FiAlertTriangle className="h-3 w-3 text-red-500" />
+                                {severityLabel[photo.issue.severity]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="bg-white px-2 py-1.5">
                             {photo.notes && (
                               <p className="truncate text-xs font-medium text-gray-700">
                                 {photo.notes}
@@ -247,13 +358,84 @@ export function FieldPhotosListPage() {
                               </p>
                             )}
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 );
               })
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Lightbox (single photo, full-res + comments) ─────────────────── */}
+      <Modal
+        open={!!lightbox}
+        onClose={() => setLightbox(null)}
+        title={lightbox ? photoCategoryLabel[lightbox.category] : ""}
+        wide
+        footer={
+          <Button variant="secondary" onPress={() => setLightbox(null)}>
+            Κλείσιμο
+          </Button>
+        }
+      >
+        {lightbox && (
+          <div className="space-y-4">
+            <div
+              className={cn(
+                "overflow-hidden rounded-lg border-4",
+                photoIssueBorder(lightbox.issue),
+              )}
+            >
+              <img
+                src={lightbox.url}
+                alt={lightbox.notes ?? ""}
+                className="max-h-[60vh] w-full object-contain bg-gray-900"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span className={photoCategoryBadge[lightbox.category]}>
+                {photoCategoryLabel[lightbox.category]}
+              </span>
+              {lightbox.taken_at && <span>{formatDate(lightbox.taken_at)}</span>}
+            </div>
+
+            {lightbox.issue && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div className="mb-1 flex items-center gap-2">
+                  <FiAlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="font-medium text-gray-900">{lightbox.issue.title}</span>
+                  <span className={severityBadge[lightbox.issue.severity]}>
+                    {severityLabel[lightbox.issue.severity]}
+                  </span>
+                  <span className={issueStatusBadge[lightbox.issue.status]}>
+                    {issueStatusLabel[lightbox.issue.status]}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">{lightbox.issue.description}</p>
+              </div>
+            )}
+
+            {/* Comments — view & edit */}
+            <div>
+              <TextAreaField
+                label="Σχόλια"
+                value={comment}
+                onChange={(v) => setComment(v)}
+                placeholder="Προσθέστε σχόλια για αυτή τη φωτογραφία…"
+              />
+              <div className="mt-2 flex justify-end">
+                <Button
+                  onPress={saveComment}
+                  isDisabled={savingComment || comment === (lightbox.notes ?? "")}
+                >
+                  {savingComment ? "Αποθήκευση…" : "Αποθήκευση σχολίων"}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </Modal>
@@ -269,13 +451,20 @@ export function FieldPhotosListPage() {
       >
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <TextField
+            <SelectField
               label="Χωράφι"
-              isRequired
+              required
               value={form.field_id}
-              onChange={(v) => set("field_id", v)}
-              placeholder="ID χωραφιού"
-            />
+              onChange={(e) => set("field_id", e.target.value)}
+            >
+              <option value="">— Επιλέξτε χωράφι —</option>
+              {fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.location_name}
+                  {f.producer_name ? ` — ${f.producer_name}` : ""}
+                </option>
+              ))}
+            </SelectField>
             <SelectField
               label="Κατηγορία"
               required
@@ -283,23 +472,55 @@ export function FieldPhotosListPage() {
               onChange={(e) => set("category", e.target.value)}
             >
               <option value="">—</option>
-              <option value="KLADEMA">Κλάδεμα</option>
-              <option value="ARAIWMA_BLASTOU">Αραίωμα Βλαστού</option>
-              <option value="ARAIWMA_KARPOU">Αραίωμα Καρπού</option>
-              <option value="KALOKAIRI_NERA">Καλοκαίρι-Νερά</option>
-              <option value="PERIODOS_SUGKOMIDIS">Περίοδος Συγκομιδής</option>
-              <option value="OTHER">Άλλο</option>
+              {PHOTO_CATEGORY_ORDER.map((cat) => (
+                <option key={cat} value={cat}>
+                  {photoCategoryLabel[cat]}
+                </option>
+              ))}
             </SelectField>
           </div>
 
-          <TextField
-            label="URL Φωτογραφίας"
-            isRequired
-            value={form.url}
-            onChange={(v) => set("url", v)}
-            placeholder="https://..."
-            inputProps={{ type: "url" }}
-          />
+          {/* Photo source — upload a file or paste a URL */}
+          <div>
+            <span className="label">
+              Φωτογραφία<span className="ml-1 text-red-500">*</span>
+            </span>
+            {form.url ? (
+              <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-2">
+                <img
+                  src={form.url}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-md object-cover"
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-gray-600">
+                  {fileName || form.url}
+                </span>
+                <Button variant="ghost" onPress={clearFile} className="text-gray-500">
+                  <FiX className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600">
+                  <FiUpload className="h-4 w-4" />
+                  Επιλογή αρχείου από τον υπολογιστή
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFile}
+                    className="sr-only"
+                  />
+                </label>
+                <TextField
+                  label=""
+                  value={form.url}
+                  onChange={(v) => set("url", v)}
+                  placeholder="ή επικολλήστε URL (https://...)"
+                  inputProps={{ type: "url" }}
+                />
+              </div>
+            )}
+          </div>
 
           <TextField
             label="Ημερομηνία Λήψης"
@@ -309,10 +530,62 @@ export function FieldPhotosListPage() {
           />
 
           <TextAreaField
-            label="Σημειώσεις"
+            label="Σχόλια"
             value={form.notes}
             onChange={(v) => set("notes", v)}
           />
+
+          {/* Problem toggle — reveals the issue fields when checked */}
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={form.has_issue}
+              onChange={(e) => set("has_issue", e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+            />
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+              <FiAlertTriangle className="h-4 w-4 text-yellow-500" />
+              Υπάρχει πρόβλημα σε αυτή τη φωτογραφία;
+            </span>
+          </label>
+
+          {form.has_issue && (
+            <div className="space-y-4 rounded-lg border border-yellow-200 bg-yellow-50/60 p-4">
+              <TextField
+                label="Τίτλος Προβλήματος"
+                isRequired
+                value={form.issue_title}
+                onChange={(v) => set("issue_title", v)}
+                placeholder="π.χ. Προσβολή από έντομα"
+              />
+              <TextAreaField
+                label="Περιγραφή Προβλήματος"
+                isRequired
+                value={form.issue_description}
+                onChange={(v) => set("issue_description", v)}
+                placeholder="Λεπτομερής περιγραφή του προβλήματος…"
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <SelectField
+                  label="Σοβαρότητα"
+                  value={form.issue_severity}
+                  onChange={(e) => set("issue_severity", e.target.value)}
+                >
+                  <option value="LOW">Χαμηλή</option>
+                  <option value="MEDIUM">Μέτρια</option>
+                  <option value="HIGH">Υψηλή</option>
+                </SelectField>
+                <SelectField
+                  label="Κατάσταση"
+                  value={form.issue_status}
+                  onChange={(e) => set("issue_status", e.target.value)}
+                >
+                  <option value="OPEN">Ανοιχτό</option>
+                  <option value="RESOLVED">Επιλύθηκε</option>
+                </SelectField>
+              </div>
+            </div>
+          )}
         </div>
       </FormModal>
     </>
