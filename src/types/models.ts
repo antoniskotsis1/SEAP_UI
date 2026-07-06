@@ -4,7 +4,7 @@ export type ProducerStatus = "LEAD" | "ACTIVE" | "INACTIVE";
 
 export type Variety = "AC22" | "AC76";
 export type Sex = "FEMALE" | "MALE";
-export type PlantingMethod = "PLANTING" | "GRAFTING";
+export type PlantingMethod = "PLANTING" | "GRAFTING" | "MIX";
 export type TrainingShape = "FISHBONE" | "UMBRELLA" | "OTHER" | "MIX";
 
 export type TransactionType = "PAYMENT" | "DEBT" | "OFFSET";
@@ -40,13 +40,25 @@ export interface ProducerListItem extends Producer {
   total_stremmata?: number;
 }
 
+/** An uploaded soil/leaf analysis spreadsheet (Excel) attached to a field. */
+export interface FieldAnalysisFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  size_bytes?: number;
+  uploaded_at: string;
+}
+
 export interface Field {
   id: string;
+  // ── Owning producer (denormalized from Producer for display) ──────
   producer_id: string;
+  producer_name: string;
   location_name: string;
   region?: string;
   stremmata?: number;
   gps_coordinates?: string;
+  comments?: string;
 
   // ── Planting metadata ─────────────────────────────────────────────
   planting_date?: string;
@@ -54,16 +66,15 @@ export interface Field {
   training_shape?: TrainingShape;
   rootstock?: string;
   spacing?: string;
+  total_plants?: number;
 
-  /** Kept as quick-reference; full records live in FieldAnalysis */
-  analysis_number?: string;
+  /** Uploaded analysis spreadsheets (Excel) for this field. */
+  analyses?: FieldAnalysisFile[];
+
+  /** Derived display summary of the field's plantings (trees × variety). */
+  planting_summary?: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface FieldListItem extends Field {
-  owner_name?: string;
-  planting_summary?: string;
 }
 
 export interface Planting {

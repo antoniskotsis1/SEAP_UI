@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { InfoField } from "@/components/ui/DescriptionList";
 import { api } from "@/lib/api";
 import { producerStatusLabel, producerStatusBadge } from "@/lib/labels";
-import type { Producer, FieldListItem, PaginatedResponse } from "@/types";
+import type { Producer, Field, PaginatedResponse } from "@/types";
 
 interface ProducerDetailModalProps {
   producer: Producer | null;
@@ -24,7 +24,7 @@ export function ProducerDetailModal({
   onClose,
   onEdit,
 }: ProducerDetailModalProps) {
-  const [fields, setFields] = useState<FieldListItem[]>([]);
+  const [fields, setFields] = useState<Field[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
 
   useEffect(() => {
@@ -34,12 +34,12 @@ export function ProducerDetailModal({
     }
     setFieldsLoading(true);
     api
-      .list<FieldListItem>("/fields", {
+      .list<Field>("/fields", {
         producer_id: producer.id,
         page_size: 100,
         sort_by: "location_name",
       })
-      .then((r: PaginatedResponse<FieldListItem>) => setFields(r.data))
+      .then((r: PaginatedResponse<Field>) => setFields(r.data))
       .catch(() => setFields([]))
       .finally(() => setFieldsLoading(false));
   }, [producer]);

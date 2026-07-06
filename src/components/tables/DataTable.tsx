@@ -30,6 +30,8 @@ export interface Column<T> {
   render: (row: T) => ReactNode;
   sortable?: boolean;
   className?: string;
+  /** CSS grid track for this column (e.g. "2fr", "minmax(80px, 0.6fr)"). */
+  width?: string;
 }
 
 // ─── Component props ─────────────────────────────────────────────────────────
@@ -143,7 +145,7 @@ export function DataTable<T>({
   const hasPagination = page !== undefined && totalPages !== undefined;
 
   const gridTemplateColumns = columns
-    .map(() => "minmax(120px, 1fr)")
+    .map((col) => col.width ?? "minmax(120px, 1fr)")
     .join(" ");
 
   // ── Render a single row ──────────────────────────────────────────────

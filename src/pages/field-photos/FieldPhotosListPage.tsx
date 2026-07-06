@@ -19,14 +19,14 @@ import {
   photoCategoryBadge,
 } from "@/lib/labels";
 import type {
-  FieldListItem,
+  Field,
   FieldPhoto,
   PhotoCategory,
 } from "@/types";
 
 // ─── Field list columns ──────────────────────────────────────────────────────
 
-const columns: Column<FieldListItem>[] = [
+const columns: Column<Field>[] = [
   {
     key: "location_name",
     header: "Χωράφι",
@@ -38,10 +38,10 @@ const columns: Column<FieldListItem>[] = [
     ),
   },
   {
-    key: "owner_name",
+    key: "producer_name",
     header: "Παραγωγός",
     sortable: true,
-    render: (row) => row.owner_name || "—",
+    render: (row) => row.producer_name || "—",
   },
   {
     key: "region",
@@ -71,13 +71,13 @@ const emptyForm = {
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FieldPhotosListPage() {
-  const table = useTableQuery<FieldListItem>({
+  const table = useTableQuery<Field>({
     endpoint: "/fields",
     defaultSortBy: "location_name",
   });
 
   // ── Gallery modal ─────────────────────────────────────────────────────────
-  const [selectedField, setSelectedField] = useState<FieldListItem | null>(null);
+  const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [fieldPhotos, setFieldPhotos] = useState<FieldPhoto[]>([]);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [photosKey, setPhotosKey] = useState(0);

@@ -18,7 +18,7 @@ import { formatNumber } from "@/lib/utils";
 import type {
   ProductionRecord,
   Producer,
-  FieldListItem,
+  Field,
 } from "@/types";
 
 // ─── Extended row type ───────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ export function ProductionListPage() {
 
   // ── Detail modals (owner / field lookups) ───────────────────────────────
   const owner = useLookupModal<Producer>("/producers");
-  const field = useLookupModal<FieldListItem>("/fields");
+  const field = useLookupModal<Field>("/fields");
 
   const isEmpty =
     !table.isLoading &&
