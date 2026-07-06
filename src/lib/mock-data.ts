@@ -11,6 +11,7 @@ import type {
   ProducerListItem,
   ProducerStatus,
   Field,
+  FieldAnalysisFile,
   Planting,
   ProductionRecord,
   FinancialTransaction,
@@ -191,6 +192,20 @@ function generateProducers(): Producer[] {
   return producers;
 }
 
+function generateAnalyses(ts: string): FieldAnalysisFile[] {
+  const count = randInt(0, 3);
+  return Array.from({ length: count }, () => {
+    const num = randInt(1, 80);
+    return {
+      id: uid(),
+      file_name: `analysis-N${num}.xlsx`,
+      file_url: `/mock/analyses/analysis-N${num}.xlsx`,
+      size_bytes: randInt(12_000, 250_000),
+      uploaded_at: ts,
+    };
+  });
+}
+
 function generateFields(producers: Producer[]): Field[] {
   const fields: Field[] = [];
   producers.forEach((e) => {
@@ -201,6 +216,7 @@ function generateFields(producers: Producer[]): Field[] {
       fields.push({
         id: uid(),
         producer_id: e.id,
+        producer_name: e.display_name,
         location_name: pick(LOCATIONS),
         region: pick(REGIONS),
         stremmata: randDec(1.5, 15, 1),
@@ -210,7 +226,7 @@ function generateFields(producers: Producer[]): Field[] {
         training_shape: pick(["FISHBONE", "UMBRELLA", "OTHER", "MIX"]),
         rootstock: pick(ROOTSTOCKS) ?? undefined,
         spacing: pick(SPACINGS) ?? undefined,
-        analysis_number: Math.random() > 0.4 ? `Ν${randInt(1, 80)}` : undefined,
+        analyses: generateAnalyses(ts),
         created_at: ts,
         updated_at: ts,
       });
@@ -429,7 +445,6 @@ plantings.forEach((p) => {
 });
 
 // Augmented types for display (add joined names)
-export type FieldWithOwner = Field & { owner_name: string; planting_summary?: string };
 export type PlantingWithField = Planting & { field_name: string; owner_name: string; producer_id: string };
 export type ProductionWithContext = ProductionRecord & {
   field_id: string;
@@ -455,7 +470,7 @@ function enrichProducers(): ProducerListItem[] {
   }));
 }
 
-function enrichFields(): FieldWithOwner[] {
+function enrichFields(): Field[] {
   return fields.map((f) => {
     const fp = plantingsByFieldId.get(f.id) ?? [];
     const parts: string[] = [];
@@ -468,7 +483,6 @@ function enrichFields(): FieldWithOwner[] {
     if (maleTrees > 0) parts.push(`${maleTrees} ♂`);
     return {
       ...f,
-      owner_name: producerMap.get(f.producer_id)?.display_name ?? "—",
       planting_summary: parts.length > 0 ? parts.join(" + ") : undefined,
     };
   });
@@ -597,7 +611,7 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
   "/api/producers": (p) =>
     queryEngine(enrichProducers(), p, ["display_name", "afm", "phone", "email", "region"]),
   "/api/fields": (p) =>
-    queryEngine(enrichFields(), p, ["location_name", "owner_name", "analysis_number"]),
+    queryEngine(enrichFields(), p, ["location_name", "producer_name"]),
   "/api/plantings": (p) =>
     queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety", "rootstock"]),
   "/api/production": (p) =>
@@ -679,6 +693,106 @@ function updateProducer(id: string, body: ProducerInput): Producer | null {
   return existing;
 }
 
+/** Fields a client is allowed to set on a field. */
+type FieldInput = Partial<
+  Pick<
+    Field,
+    | "producer_id"
+    | "producer_name"
+    | "location_name"
+    | "region"
+    | "stremmata"
+    | "gps_coordinates"
+    | "planting_date"
+    | "planting_method"
+    | "training_shape"
+    | "rootstock"
+    | "spacing"
+    | "total_plants"
+    | "comments"
+    | "analyses"
+  >
+>;
+
+/** Give newly-uploaded analyses the server-side fields the client can't set. */
+function normalizeAnalyses(
+  list?: Partial<FieldAnalysisFile>[]
+): FieldAnalysisFile[] | undefined {
+  if (!list || list.length === 0) return undefined;
+  return list.map((a) => {
+    const name = a.file_name ?? "analysis.xlsx";
+    return {
+      id: a.id ?? uid(),
+      file_name: name,
+      file_url: a.file_url ?? `/mock/analyses/${name}`,
+      size_bytes: a.size_bytes,
+      uploaded_at: a.uploaded_at ?? new Date().toISOString(),
+    };
+  });
+}
+
+function resolveProducerName(producerId?: string, fallback?: string): string {
+  return (
+    fallback ??
+    (producerId ? producerMap.get(producerId)?.display_name : undefined) ??
+    "—"
+  );
+}
+
+function createField(body: FieldInput): Field {
+  const now = new Date().toISOString();
+  const field: Field = {
+    id: uid(),
+    producer_id: body.producer_id ?? "",
+    producer_name: resolveProducerName(body.producer_id, body.producer_name),
+    location_name: body.location_name?.trim() ?? "",
+    region: blankToUndef(body.region),
+    stremmata: body.stremmata,
+    gps_coordinates: blankToUndef(body.gps_coordinates),
+    planting_date: blankToUndef(body.planting_date),
+    planting_method: body.planting_method,
+    training_shape: body.training_shape,
+    rootstock: blankToUndef(body.rootstock),
+    spacing: blankToUndef(body.spacing),
+    total_plants: body.total_plants,
+    comments: blankToUndef(body.comments),
+    analyses: normalizeAnalyses(body.analyses),
+    created_at: now,
+    updated_at: now,
+  };
+  fields.push(field);
+  fieldMap.set(field.id, field);
+  return field;
+}
+
+function updateField(id: string, body: FieldInput): Field | null {
+  const existing = fieldMap.get(id);
+  if (!existing) return null;
+  if (body.producer_id) {
+    existing.producer_id = body.producer_id;
+    existing.producer_name = resolveProducerName(
+      body.producer_id,
+      body.producer_name
+    );
+  }
+  if (body.location_name !== undefined) {
+    existing.location_name = body.location_name.trim() || existing.location_name;
+  }
+  existing.region = blankToUndef(body.region);
+  existing.stremmata = body.stremmata;
+  existing.gps_coordinates = blankToUndef(body.gps_coordinates);
+  existing.planting_date = blankToUndef(body.planting_date);
+  existing.planting_method = body.planting_method;
+  existing.training_shape = body.training_shape;
+  existing.rootstock = blankToUndef(body.rootstock);
+  existing.spacing = blankToUndef(body.spacing);
+  existing.total_plants = body.total_plants;
+  existing.comments = blankToUndef(body.comments);
+  existing.analyses = normalizeAnalyses(body.analyses);
+  existing.updated_at = new Date().toISOString();
+  return existing;
+}
+
 // ─── Intercept fetch ─────────────────────────────────────────────────────────
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -705,18 +819,27 @@ export function setupMockApi() {
     // Simulate network latency (200–500ms)
     await new Promise((r) => setTimeout(r, randInt(200, 500)));
 
-    // ── Writes (producers only, for now) ──────────────────────────────────
+    // ── Writes (producers + fields) ───────────────────────────────────────
     if (method !== "GET" && method !== "HEAD") {
-      const body: ProducerInput =
-        typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
 
       if (path === "/api/producers" && method === "POST") {
-        return jsonResponse(createProducer(body), 201);
+        return jsonResponse(createProducer(body as ProducerInput), 201);
+      }
+      const producerEdit = path?.match(/^\/api\/producers\/([^/]+)$/);
+      if (producerEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updateProducer(producerEdit[1]!, body as ProducerInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
       }
 
-      const editMatch = path?.match(/^\/api\/producers\/([^/]+)$/);
-      if (editMatch && (method === "PATCH" || method === "PUT")) {
-        const updated = updateProducer(editMatch[1]!, body);
+      if (path === "/api/fields" && method === "POST") {
+        return jsonResponse(createField(body as FieldInput), 201);
+      }
+      const fieldEdit = path?.match(/^\/api\/fields\/([^/]+)$/);
+      if (fieldEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updateField(fieldEdit[1]!, body as FieldInput);
         return updated
           ? jsonResponse(updated)
           : jsonResponse({ message: "Not found" }, 404);

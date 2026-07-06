@@ -27,7 +27,7 @@ import type {
   IssueStatus,
   FilterOption,
   Producer,
-  FieldListItem,
+  Field,
 } from "@/types";
 
 // ─── Extended row type ───────────────────────────────────────────────────────
@@ -159,7 +159,7 @@ export function FieldIssuesListPage() {
 
   // ── Detail modals (owner / field lookups) ──────────────────────────────────
   const owner = useLookupModal<Producer>("/producers");
-  const field = useLookupModal<FieldListItem>("/fields");
+  const field = useLookupModal<Field>("/fields");
 
   const columns = buildColumns(
     (row) => field.openById(row.field_id),

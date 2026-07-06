@@ -41,6 +41,7 @@ export const sexLabel: Record<Sex, string> = {
 export const methodLabel: Record<PlantingMethod, string> = {
   PLANTING: "Φύτευση",
   GRAFTING: "Εμβολιασμός",
+  MIX: "Μεικτό",
 };
 export const shapeLabel: Record<TrainingShape, string> = {
   FISHBONE: "Ψαροκόκαλο",
