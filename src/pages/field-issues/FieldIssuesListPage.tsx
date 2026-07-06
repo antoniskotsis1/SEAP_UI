@@ -26,7 +26,7 @@ import type {
   IssueSeverity,
   IssueStatus,
   FilterOption,
-  BusinessEntity,
+  Producer,
   FieldListItem,
 } from "@/types";
 
@@ -35,7 +35,7 @@ import type {
 type IssueRow = FieldIssue & {
   field_name?: string;
   owner_name?: string;
-  business_entity_id?: string;
+  producer_id?: string;
 };
 
 // ─── Column definitions ─────────────────────────────────────────────────────
@@ -158,12 +158,12 @@ export function FieldIssuesListPage() {
   const [saving, setSaving] = useState(false);
 
   // ── Detail modals (owner / field lookups) ──────────────────────────────────
-  const owner = useLookupModal<BusinessEntity>("/business-entities");
+  const owner = useLookupModal<Producer>("/producers");
   const field = useLookupModal<FieldListItem>("/fields");
 
   const columns = buildColumns(
     (row) => field.openById(row.field_id),
-    (row) => owner.openById(row.business_entity_id),
+    (row) => owner.openById(row.producer_id),
   );
 
   const isEmpty =
@@ -261,7 +261,7 @@ export function FieldIssuesListPage() {
       )}
 
       {/* ── Producer detail modal ────────────────────────────────────────── */}
-      <ProducerDetailModal entity={owner.record} onClose={owner.close} />
+      <ProducerDetailModal producer={owner.record} onClose={owner.close} />
 
       {/* ── Field detail modal ───────────────────────────────────────────── */}
       <FieldDetailModal field={field.record} onClose={field.close} />

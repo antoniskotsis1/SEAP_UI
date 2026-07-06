@@ -1,9 +1,8 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export type BusinessEntityType = "INDIVIDUAL" | "BUSINESS";
-export type BusinessEntityStatus = "LEAD" | "ACTIVE" | "INACTIVE";
+export type ProducerStatus = "LEAD" | "ACTIVE" | "INACTIVE";
 
-export type Variety = "V22" | "V76";
+export type Variety = "AC22" | "AC76";
 export type Sex = "FEMALE" | "MALE";
 export type PlantingMethod = "PLANTING" | "GRAFTING";
 export type TrainingShape = "FISHBONE" | "UMBRELLA" | "OTHER" | "MIX";
@@ -24,24 +23,26 @@ export type PhotoCategory =
 
 // ─── Entities ────────────────────────────────────────────────────────────────
 
-export interface BusinessEntity {
+export interface Producer {
   id: string;
   display_name: string;
-  type: BusinessEntityType;
-  status: BusinessEntityStatus;
+  status: ProducerStatus;
   afm?: string;
   phone?: string;
   email?: string;
   representative_name?: string;
   region?: string;
   notes?: string;
-  created_at: string;
-  updated_at: string;
+}
+
+export interface ProducerListItem extends Producer {
+  /** Sum of stremmata across all of this producer's fields. */
+  total_stremmata?: number;
 }
 
 export interface Field {
   id: string;
-  business_entity_id: string;
+  producer_id: string;
   location_name: string;
   region?: string;
   stremmata?: number;
@@ -117,7 +118,7 @@ export interface ProductionRecord {
 
 export interface FinancialTransaction {
   id: string;
-  business_entity_id: string;
+  producer_id: string;
   field_id?: string;
   type: TransactionType;
   year: number;

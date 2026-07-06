@@ -117,7 +117,7 @@ const filterDefs: FilterOption[] = [
 // ─── Initial form state ─────────────────────────────────────────────────────
 
 const emptyForm = {
-  business_entity_id: "",
+  producer_id: "",
   field_id: "",
   type: "PAYMENT" as TransactionType,
   year: String(new Date().getFullYear()),
@@ -156,7 +156,7 @@ export function FinancialsListPage() {
   };
 
   const handleSubmit = async () => {
-    if (!form.business_entity_id.trim()) {
+    if (!form.producer_id.trim()) {
       toast.error("Ο παραγωγός είναι υποχρεωτικός");
       return;
     }
@@ -167,7 +167,7 @@ export function FinancialsListPage() {
     setSaving(true);
     try {
       await api.post("/financials", {
-        business_entity_id: form.business_entity_id,
+        producer_id: form.producer_id,
         field_id: form.field_id || undefined,
         type: form.type,
         year: Number(form.year),
@@ -257,8 +257,8 @@ export function FinancialsListPage() {
           <TextField
             label="Παραγωγός"
             isRequired
-            value={form.business_entity_id}
-            onChange={(v) => set("business_entity_id", v)}
+            value={form.producer_id}
+            onChange={(v) => set("producer_id", v)}
             placeholder="ID παραγωγού"
           />
 

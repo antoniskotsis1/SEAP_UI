@@ -19,7 +19,7 @@ import type { PlantingMethod, TrainingShape } from "@/types";
 
 type FieldRow = {
   id: string;
-  business_entity_id: string;
+  producer_id: string;
   location_name: string;
   region?: string;
   stremmata?: number;
@@ -128,7 +128,7 @@ function buildColumns(
 // ─── Initial form state ─────────────────────────────────────────────────────
 
 const emptyForm = {
-  business_entity_id: "",
+  producer_id: "",
   location_name: "",
   region: "",
   stremmata: "",
@@ -171,14 +171,14 @@ export function FieldsListPage() {
       toast.error("Η τοποθεσία είναι υποχρεωτική");
       return;
     }
-    if (!form.business_entity_id.trim()) {
+    if (!form.producer_id.trim()) {
       toast.error("Ο παραγωγός είναι υποχρεωτικός");
       return;
     }
     setSaving(true);
     try {
       await api.post("/fields", {
-        business_entity_id: form.business_entity_id,
+        producer_id: form.producer_id,
         location_name: form.location_name,
         region: form.region || undefined,
         stremmata: form.stremmata ? Number(form.stremmata) : undefined,
@@ -298,8 +298,8 @@ export function FieldsListPage() {
           <TextField
             label="Παραγωγός"
             isRequired
-            value={form.business_entity_id}
-            onChange={(v) => set("business_entity_id", v)}
+            value={form.producer_id}
+            onChange={(v) => set("producer_id", v)}
             placeholder="ID παραγωγού"
           />
 

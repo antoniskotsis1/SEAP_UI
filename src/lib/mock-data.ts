@@ -7,7 +7,9 @@
  */
 
 import type {
-  BusinessEntity,
+  Producer,
+  ProducerListItem,
+  ProducerStatus,
   Field,
   Planting,
   ProductionRecord,
@@ -155,15 +157,13 @@ const PHOTO_NOTES_BY_CATEGORY: Record<PhotoCategory, string[]> = {
 
 // ─── Generate mock datasets ─────────────────────────────────────────────────
 
-function generateBusinessEntities(): BusinessEntity[] {
-  const entities: BusinessEntity[] = [];
+function generateProducers(): Producer[] {
+  const producers: Producer[] = [];
 
   NAMES.forEach((name) => {
-    const ts = pastDate(3);
-    entities.push({
+    producers.push({
       id: uid(),
       display_name: name,
-      type: "INDIVIDUAL",
       status: pick(["ACTIVE", "ACTIVE", "ACTIVE", "LEAD", "INACTIVE"]),
       afm: String(randInt(10000000, 999999999)),
       phone: pick(PHONES),
@@ -171,17 +171,13 @@ function generateBusinessEntities(): BusinessEntity[] {
       representative_name: undefined,
       region: pick(REGIONS),
       notes: Math.random() > 0.7 ? "Σημείωση demo" : undefined,
-      created_at: ts,
-      updated_at: ts,
     });
   });
 
   BUSINESS_NAMES.forEach((name) => {
-    const ts = pastDate(2);
-    entities.push({
+    producers.push({
       id: uid(),
       display_name: name,
-      type: "BUSINESS",
       status: "ACTIVE",
       afm: String(randInt(800000000, 999999999)),
       phone: pick(PHONES),
@@ -189,24 +185,22 @@ function generateBusinessEntities(): BusinessEntity[] {
       representative_name: pick(NAMES),
       region: pick(REGIONS),
       notes: undefined,
-      created_at: ts,
-      updated_at: ts,
     });
   });
 
-  return entities;
+  return producers;
 }
 
-function generateFields(entities: BusinessEntity[]): Field[] {
+function generateFields(producers: Producer[]): Field[] {
   const fields: Field[] = [];
-  entities.forEach((e) => {
+  producers.forEach((e) => {
     const numFields = randInt(1, 3);
     for (let i = 0; i < numFields; i++) {
       const ts = pastDate(2);
       const plantYear = pick([2018, 2019, 2020, 2021, 2022, 2023]);
       fields.push({
         id: uid(),
-        business_entity_id: e.id,
+        producer_id: e.id,
         location_name: pick(LOCATIONS),
         region: pick(REGIONS),
         stremmata: randDec(1.5, 15, 1),
@@ -233,7 +227,7 @@ function generatePlantings(fields: Field[]): Planting[] {
     plantings.push({
       id: uid(),
       field_id: f.id,
-      variety: pick(["V22", "V22", "V22", "V76"]),
+      variety: pick(["AC22", "AC22", "AC22", "AC76"]),
       sex: "FEMALE",
       tree_count: randInt(50, 500),
       planting_year: pick([2020, 2021, 2022, 2023, 2024, 2025]),
@@ -249,7 +243,7 @@ function generatePlantings(fields: Field[]): Planting[] {
       plantings.push({
         id: uid(),
         field_id: f.id,
-        variety: "V22",
+        variety: "AC22",
         sex: "MALE",
         tree_count: randInt(5, 50),
         planting_year: pick([2020, 2021, 2022, 2023, 2024]),
@@ -317,9 +311,9 @@ function generateProduction(plantings: Planting[]): ProductionRecord[] {
   return records;
 }
 
-function generateFinancials(entities: BusinessEntity[]): FinancialTransaction[] {
+function generateFinancials(producers: Producer[]): FinancialTransaction[] {
   const txns: FinancialTransaction[] = [];
-  entities
+  producers
     .filter((e) => e.status !== "LEAD")
     .forEach((e) => {
       for (const year of [2023, 2024]) {
@@ -328,7 +322,7 @@ function generateFinancials(entities: BusinessEntity[]): FinancialTransaction[] 
           const ts = isoDate(year, randInt(3, 11), randInt(1, 28));
           txns.push({
             id: uid(),
-            business_entity_id: e.id,
+            producer_id: e.id,
             type: "PAYMENT",
             year,
             stremmata_covered: randDec(2, 12, 1),
@@ -347,7 +341,7 @@ function generateFinancials(entities: BusinessEntity[]): FinancialTransaction[] 
         const ts = isoDate(2024, randInt(6, 12), randInt(1, 28));
         txns.push({
           id: uid(),
-          business_entity_id: e.id,
+          producer_id: e.id,
           type: "DEBT",
           year: 2024,
           stremmata_covered: undefined,
@@ -414,16 +408,16 @@ function generateIssues(fields: Field[]): FieldIssue[] {
 
 // ─── In-memory database ──────────────────────────────────────────────────────
 
-const entities = generateBusinessEntities();
-const fields = generateFields(entities);
+const producers = generateProducers();
+const fields = generateFields(producers);
 const plantings = generatePlantings(fields);
 const production = generateProduction(plantings);
-const financials = generateFinancials(entities);
+const financials = generateFinancials(producers);
 const photos = generatePhotos(fields);
 const issues = generateIssues(fields);
 
 // Build lookup maps for joined display names
-const entityMap = new Map(entities.map((e) => [e.id, e]));
+const producerMap = new Map(producers.map((e) => [e.id, e]));
 const fieldMap = new Map(fields.map((f) => [f.id, f]));
 const plantingMap = new Map(plantings.map((p) => [p.id, p]));
 
@@ -436,17 +430,30 @@ plantings.forEach((p) => {
 
 // Augmented types for display (add joined names)
 export type FieldWithOwner = Field & { owner_name: string; planting_summary?: string };
-export type PlantingWithField = Planting & { field_name: string; owner_name: string; business_entity_id: string };
+export type PlantingWithField = Planting & { field_name: string; owner_name: string; producer_id: string };
 export type ProductionWithContext = ProductionRecord & {
   field_id: string;
-  business_entity_id: string;
+  producer_id: string;
   field_name: string;
   owner_name: string;
   variety: string;
 };
 export type FinancialWithOwner = FinancialTransaction & { owner_name: string };
-export type PhotoWithField = FieldPhoto & { field_name: string; owner_name: string; business_entity_id: string };
-export type IssueWithField = FieldIssue & { field_name: string; owner_name: string; business_entity_id: string };
+export type PhotoWithField = FieldPhoto & { field_name: string; owner_name: string; producer_id: string };
+export type IssueWithField = FieldIssue & { field_name: string; owner_name: string; producer_id: string };
+
+const stremmataByProducerId = new Map<string, number>();
+fields.forEach((f) => {
+  const prev = stremmataByProducerId.get(f.producer_id) ?? 0;
+  stremmataByProducerId.set(f.producer_id, prev + (f.stremmata ?? 0));
+});
+
+function enrichProducers(): ProducerListItem[] {
+  return producers.map((e) => ({
+    ...e,
+    total_stremmata: +(stremmataByProducerId.get(e.id) ?? 0).toFixed(1),
+  }));
+}
 
 function enrichFields(): FieldWithOwner[] {
   return fields.map((f) => {
@@ -461,7 +468,7 @@ function enrichFields(): FieldWithOwner[] {
     if (maleTrees > 0) parts.push(`${maleTrees} ♂`);
     return {
       ...f,
-      owner_name: entityMap.get(f.business_entity_id)?.display_name ?? "—",
+      owner_name: producerMap.get(f.producer_id)?.display_name ?? "—",
       planting_summary: parts.length > 0 ? parts.join(" + ") : undefined,
     };
   });
@@ -472,10 +479,10 @@ function enrichPlantings(): PlantingWithField[] {
     const field = fieldMap.get(p.field_id);
     return {
       ...p,
-      business_entity_id: field?.business_entity_id ?? "",
+      producer_id: field?.producer_id ?? "",
       field_name: field?.location_name ?? "—",
       owner_name: field
-        ? entityMap.get(field.business_entity_id)?.display_name ?? "—"
+        ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
     };
   });
@@ -488,11 +495,11 @@ function enrichProduction(): ProductionWithContext[] {
     return {
       ...r,
       field_id: field?.id ?? "",
-      business_entity_id: field?.business_entity_id ?? "",
+      producer_id: field?.producer_id ?? "",
       variety: planting?.variety ?? "—",
       field_name: field?.location_name ?? "—",
       owner_name: field
-        ? entityMap.get(field.business_entity_id)?.display_name ?? "—"
+        ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
     };
   });
@@ -501,7 +508,7 @@ function enrichProduction(): ProductionWithContext[] {
 function enrichFinancials(): FinancialWithOwner[] {
   return financials.map((t) => ({
     ...t,
-    owner_name: entityMap.get(t.business_entity_id)?.display_name ?? "—",
+    owner_name: producerMap.get(t.producer_id)?.display_name ?? "—",
   }));
 }
 
@@ -510,10 +517,10 @@ function enrichPhotos(): PhotoWithField[] {
     const field = fieldMap.get(p.field_id);
     return {
       ...p,
-      business_entity_id: field?.business_entity_id ?? "",
+      producer_id: field?.producer_id ?? "",
       field_name: field?.location_name ?? "—",
       owner_name: field
-        ? entityMap.get(field.business_entity_id)?.display_name ?? "—"
+        ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
     };
   });
@@ -524,10 +531,10 @@ function enrichIssues(): IssueWithField[] {
     const field = fieldMap.get(i.field_id);
     return {
       ...i,
-      business_entity_id: field?.business_entity_id ?? "",
+      producer_id: field?.producer_id ?? "",
       field_name: field?.location_name ?? "—",
       owner_name: field
-        ? entityMap.get(field.business_entity_id)?.display_name ?? "—"
+        ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
     };
   });
@@ -587,8 +594,8 @@ function queryEngine<T extends object>(
 // ─── Route handlers ──────────────────────────────────────────────────────────
 
 const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<unknown>> = {
-  "/api/business-entities": (p) =>
-    queryEngine(entities, p, ["display_name", "afm", "phone", "email", "region"]),
+  "/api/producers": (p) =>
+    queryEngine(enrichProducers(), p, ["display_name", "afm", "phone", "email", "region"]),
   "/api/fields": (p) =>
     queryEngine(enrichFields(), p, ["location_name", "owner_name", "analysis_number"]),
   "/api/plantings": (p) =>
@@ -606,7 +613,7 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
 // ─── Dashboard stats ─────────────────────────────────────────────────────────
 
 export function getDashboardStats() {
-  const activeEntities = entities.filter((e) => e.status === "ACTIVE").length;
+  const activeProducers = producers.filter((e) => e.status === "ACTIVE").length;
   const totalFields = fields.length;
   const totalProduction = production
     .filter((r) => r.harvest_year === 2024 && !r.is_estimate)
@@ -616,10 +623,69 @@ export function getDashboardStats() {
     .reduce((sum, t) => sum + t.amount, 0);
   const openIssues = issues.filter((i) => i.status === "OPEN").length;
 
-  return { activeEntities, totalFields, totalProduction, totalPayments, openIssues };
+  return { activeProducers, totalFields, totalProduction, totalPayments, openIssues };
+}
+
+// ─── Mutations (create / update) ─────────────────────────────────────────────
+// The mock persists producer writes in-memory so create/edit round-trip through
+// the same GET handlers (enrichProducers reads the live `producers` array).
+
+/** Fields a client is allowed to set on a producer. */
+type ProducerInput = Partial<
+  Pick<
+    Producer,
+    | "display_name"
+    | "status"
+    | "afm"
+    | "phone"
+    | "email"
+    | "representative_name"
+    | "region"
+    | "notes"
+  >
+>;
+
+/** Empty strings coming from form inputs collapse to `undefined`. */
+const blankToUndef = (v?: string) => (v && v.trim() !== "" ? v : undefined);
+
+function createProducer(body: ProducerInput): Producer {
+  const producer: Producer = {
+    id: uid(),
+    display_name: body.display_name?.trim() ?? "",
+    status: (body.status as ProducerStatus) ?? "LEAD",
+    afm: blankToUndef(body.afm),
+    phone: blankToUndef(body.phone),
+    email: blankToUndef(body.email),
+    representative_name: blankToUndef(body.representative_name),
+    region: blankToUndef(body.region),
+    notes: blankToUndef(body.notes),
+  };
+  producers.push(producer);
+  producerMap.set(producer.id, producer);
+  return producer;
+}
+
+function updateProducer(id: string, body: ProducerInput): Producer | null {
+  const existing = producerMap.get(id);
+  if (!existing) return null;
+  existing.display_name = body.display_name?.trim() || existing.display_name;
+  if (body.status) existing.status = body.status as ProducerStatus;
+  existing.afm = blankToUndef(body.afm);
+  existing.phone = blankToUndef(body.phone);
+  existing.email = blankToUndef(body.email);
+  existing.representative_name = blankToUndef(body.representative_name);
+  existing.region = blankToUndef(body.region);
+  existing.notes = blankToUndef(body.notes);
+  return existing;
 }
 
 // ─── Intercept fetch ─────────────────────────────────────────────────────────
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 export function setupMockApi() {
   const originalFetch = window.fetch;
@@ -627,37 +693,51 @@ export function setupMockApi() {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-    // Only intercept /api/* GET requests
+    // Only intercept /api/* requests
     if (!url.startsWith("/api/")) {
       return originalFetch(input, init);
     }
 
+    const method = (init?.method ?? "GET").toUpperCase();
     const [path, queryString] = url.split("?");
     const params = new URLSearchParams(queryString ?? "");
-
-    const handler = handlers[path!];
-    if (!handler) {
-      return new Response(JSON.stringify({ message: "Not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
 
     // Simulate network latency (200–500ms)
     await new Promise((r) => setTimeout(r, randInt(200, 500)));
 
-    const body = handler(params);
+    // ── Writes (producers only, for now) ──────────────────────────────────
+    if (method !== "GET" && method !== "HEAD") {
+      const body: ProducerInput =
+        typeof init?.body === "string" ? JSON.parse(init.body) : {};
 
-    return new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
+      if (path === "/api/producers" && method === "POST") {
+        return jsonResponse(createProducer(body), 201);
+      }
+
+      const editMatch = path?.match(/^\/api\/producers\/([^/]+)$/);
+      if (editMatch && (method === "PATCH" || method === "PUT")) {
+        const updated = updateProducer(editMatch[1]!, body);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
+      return jsonResponse({ message: "Method not allowed" }, 405);
+    }
+
+    // ── Reads ─────────────────────────────────────────────────────────────
+    const handler = handlers[path!];
+    if (!handler) {
+      return jsonResponse({ message: "Not found" }, 404);
+    }
+
+    return jsonResponse(handler(params));
   };
 
   console.log(
     "%c🫒 SEAPP Mock API active — %d producers, %d fields, %d plantings, %d production records, %d transactions",
     "color: #13a319; font-weight: bold",
-    entities.length,
+    producers.length,
     fields.length,
     plantings.length,
     production.length,

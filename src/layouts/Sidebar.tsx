@@ -28,13 +28,13 @@ const navigation = [
 ];
 
 const producerStatuses = [
-  { label: "Ενεργός", value: "ACTIVE", to: "/business-entities?status=ACTIVE" },
+  { label: "Ενεργός", value: "ACTIVE", to: "/producers?status=ACTIVE" },
   {
     label: "Ανενεργός",
     value: "INACTIVE",
-    to: "/business-entities?status=INACTIVE",
+    to: "/producers?status=INACTIVE",
   },
-  { label: "Lead", value: "LEAD", to: "/business-entities?status=LEAD" },
+  { label: "Lead", value: "LEAD", to: "/producers?status=LEAD" },
 ];
 
 interface SidebarProps {
@@ -44,7 +44,7 @@ interface SidebarProps {
 
 export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
-  const isOnProducers = location.pathname.startsWith("/business-entities");
+  const isOnProducers = location.pathname.startsWith("/producers");
   const [producersOpen, setProducersOpen] = useState(isOnProducers);
 
   useEffect(() => {
