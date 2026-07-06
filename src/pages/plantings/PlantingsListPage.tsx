@@ -20,7 +20,7 @@ import type {
   Variety,
   Sex,
   FilterOption,
-  BusinessEntity,
+  Producer,
   FieldListItem,
 } from "@/types";
 
@@ -29,7 +29,7 @@ import type {
 type PlantingRow = Planting & {
   field_name?: string;
   owner_name?: string;
-  business_entity_id?: string;
+  producer_id?: string;
 };
 
 // ─── Column definitions ─────────────────────────────────────────────────────
@@ -107,8 +107,8 @@ const filterDefs: FilterOption[] = [
     key: "variety",
     label: "Ποικιλία",
     options: [
-      { value: "V22", label: "V22" },
-      { value: "V76", label: "V76" },
+      { value: "AC22", label: "AC22" },
+      { value: "AC76", label: "AC76" },
     ],
   },
 ];
@@ -118,7 +118,7 @@ const filterDefs: FilterOption[] = [
 const emptyForm = {
   field_id: "",
   sex: "FEMALE" as Sex,
-  variety: "V22" as Variety | "",
+  variety: "AC22" as Variety | "",
   tree_count: "",
 };
 
@@ -136,11 +136,11 @@ export function PlantingsListPage() {
   const [saving, setSaving] = useState(false);
 
   // ── Detail modals (owner / field lookups) ──────────────────────────────────
-  const owner = useLookupModal<BusinessEntity>("/business-entities");
+  const owner = useLookupModal<Producer>("/producers");
   const field = useLookupModal<FieldListItem>("/fields");
 
   const columns = buildColumns(
-    (row) => owner.openById(row.business_entity_id),
+    (row) => owner.openById(row.producer_id),
     (row) => field.openById(row.field_id),
   );
 
@@ -241,7 +241,7 @@ export function PlantingsListPage() {
       )}
 
       {/* ── Producer detail modal ────────────────────────────────────────── */}
-      <ProducerDetailModal entity={owner.record} onClose={owner.close} />
+      <ProducerDetailModal producer={owner.record} onClose={owner.close} />
 
       {/* ── Field detail modal ───────────────────────────────────────────── */}
       <FieldDetailModal field={field.record} onClose={field.close} />
@@ -282,8 +282,8 @@ export function PlantingsListPage() {
                 onChange={(e) => set("variety", e.target.value)}
               >
                 <option value="">—</option>
-                <option value="V22">V22</option>
-                <option value="V76">V76</option>
+                <option value="AC22">AC22</option>
+                <option value="AC76">AC76</option>
               </SelectField>
             )}
           </div>

@@ -1,88 +1,90 @@
 import { useState, useEffect } from "react";
-import { FiMapPin } from "react-icons/fi";
+import { FiMapPin, FiEdit2 } from "react-icons/fi";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { InfoField } from "@/components/ui/DescriptionList";
 import { api } from "@/lib/api";
-import {
-  entityStatusLabel,
-  entityStatusBadge,
-  entityTypeLabel,
-  entityTypeBadge,
-} from "@/lib/labels";
-import type {
-  BusinessEntity,
-  FieldListItem,
-  PaginatedResponse,
-} from "@/types";
+import { producerStatusLabel, producerStatusBadge } from "@/lib/labels";
+import type { Producer, FieldListItem, PaginatedResponse } from "@/types";
 
 interface ProducerDetailModalProps {
-  entity: BusinessEntity | null;
+  producer: Producer | null;
   onClose: () => void;
+  /** When provided, an "Επεξεργασία" action is shown that opens the edit form. */
+  onEdit?: (producer: Producer) => void;
 }
 
 /**
- * Read-only producer detail dialog: status/type badges, contact grid, notes,
+ * Read-only producer detail dialog: status badge, contact grid, notes,
  * and the list of that producer's fields (fetched on open). Shared by every
- * page that surfaces a producer.
+ * page that surfaces a producer. Pass `onEdit` to surface an edit action.
  */
-export function ProducerDetailModal({ entity, onClose }: ProducerDetailModalProps) {
+export function ProducerDetailModal({
+  producer,
+  onClose,
+  onEdit,
+}: ProducerDetailModalProps) {
   const [fields, setFields] = useState<FieldListItem[]>([]);
   const [fieldsLoading, setFieldsLoading] = useState(false);
 
   useEffect(() => {
-    if (!entity) {
+    if (!producer) {
       setFields([]);
       return;
     }
     setFieldsLoading(true);
     api
       .list<FieldListItem>("/fields", {
-        business_entity_id: entity.id,
+        producer_id: producer.id,
         page_size: 100,
         sort_by: "location_name",
       })
       .then((r: PaginatedResponse<FieldListItem>) => setFields(r.data))
       .catch(() => setFields([]))
       .finally(() => setFieldsLoading(false));
-  }, [entity]);
+  }, [producer]);
 
   return (
     <Modal
-      open={!!entity}
+      open={!!producer}
       onClose={onClose}
-      title={entity?.display_name ?? ""}
+      title={producer?.display_name ?? ""}
       wide
       footer={
-        <Button variant="secondary" onPress={onClose}>
-          Κλείσιμο
-        </Button>
+        <>
+          <Button variant="secondary" onPress={onClose}>
+            Κλείσιμο
+          </Button>
+          {onEdit && producer && (
+            <Button onPress={() => onEdit(producer)}>
+              <FiEdit2 className="h-4 w-4" />
+              Επεξεργασία
+            </Button>
+          )}
+        </>
       }
     >
-      {entity && (
+      {producer && (
         <div className="space-y-5">
-          {/* Status + type badges */}
+          {/* Status badge */}
           <div className="flex items-center gap-2">
-            <span className={entityStatusBadge[entity.status]}>
-              {entityStatusLabel[entity.status]}
-            </span>
-            <span className={entityTypeBadge(entity.type)}>
-              {entityTypeLabel[entity.type]}
+            <span className={producerStatusBadge[producer.status]}>
+              {producerStatusLabel[producer.status]}
             </span>
           </div>
 
           {/* Contact / info grid */}
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
-            <InfoField label="ΑΦΜ" value={entity.afm} />
-            <InfoField label="Τηλέφωνο" value={entity.phone} />
-            <InfoField label="Email" value={entity.email} />
-            <InfoField label="Εκπρόσωπος" value={entity.representative_name} />
-            <InfoField label="Περιοχή" value={entity.region} />
+            <InfoField label="ΑΦΜ" value={producer.afm} />
+            <InfoField label="Τηλέφωνο" value={producer.phone} />
+            <InfoField label="Email" value={producer.email} />
+            <InfoField label="Εκπρόσωπος" value={producer.representative_name} />
+            <InfoField label="Περιοχή" value={producer.region} />
           </dl>
 
-          {entity.notes && (
+          {producer.notes && (
             <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
-              {entity.notes}
+              {producer.notes}
             </p>
           )}
 

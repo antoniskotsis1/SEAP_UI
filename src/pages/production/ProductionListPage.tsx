@@ -17,7 +17,7 @@ import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/utils";
 import type {
   ProductionRecord,
-  BusinessEntity,
+  Producer,
   FieldListItem,
 } from "@/types";
 
@@ -25,7 +25,7 @@ import type {
 
 type ProductionRow = ProductionRecord & {
   field_id?: string;
-  business_entity_id?: string;
+  producer_id?: string;
   field_name?: string;
   owner_name?: string;
   variety?: string;
@@ -217,7 +217,7 @@ export function ProductionListPage() {
   const [detailRow, setDetailRow] = useState<ProductionRow | null>(null);
 
   // ── Detail modals (owner / field lookups) ───────────────────────────────
-  const owner = useLookupModal<BusinessEntity>("/business-entities");
+  const owner = useLookupModal<Producer>("/producers");
   const field = useLookupModal<FieldListItem>("/fields");
 
   const isEmpty =
@@ -279,7 +279,7 @@ export function ProductionListPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const columns = buildColumns(
-    (row) => owner.openById(row.business_entity_id),
+    (row) => owner.openById(row.producer_id),
     (row) => field.openById(row.field_id),
   );
 
@@ -360,7 +360,7 @@ export function ProductionListPage() {
       </Modal>
 
       {/* ── Producer detail modal ──────────────────────────────────────────── */}
-      <ProducerDetailModal entity={owner.record} onClose={owner.close} />
+      <ProducerDetailModal producer={owner.record} onClose={owner.close} />
 
       {/* ── Field detail modal ─────────────────────────────────────────────── */}
       <FieldDetailModal field={field.record} onClose={field.close} />

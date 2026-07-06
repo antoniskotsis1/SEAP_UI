@@ -3,8 +3,7 @@
 // pages rendered before, so the UI does not change.
 
 import type {
-  BusinessEntityType,
-  BusinessEntityStatus,
+  ProducerStatus,
   Variety,
   Sex,
   PlantingMethod,
@@ -16,28 +15,22 @@ import type {
   PhotoCategory,
 } from "@/types";
 
-// ─── Business entity ─────────────────────────────────────────────────────────
+// ─── Producer ────────────────────────────────────────────────────────────────
 
-export const entityStatusLabel: Record<BusinessEntityStatus, string> = {
+export const producerStatusLabel: Record<ProducerStatus, string> = {
   LEAD: "Lead",
   ACTIVE: "Ενεργός",
   INACTIVE: "Ανενεργός",
 };
-export const entityStatusBadge: Record<BusinessEntityStatus, string> = {
+export const producerStatusBadge: Record<ProducerStatus, string> = {
   LEAD: "badge-blue",
   ACTIVE: "badge-green",
   INACTIVE: "badge-gray",
 };
-export const entityTypeLabel: Record<BusinessEntityType, string> = {
-  INDIVIDUAL: "Ιδιώτης",
-  BUSINESS: "Επιχείρηση",
-};
-export const entityTypeBadge = (type: BusinessEntityType): string =>
-  type === "BUSINESS" ? "badge-blue" : "badge-gray";
 
 // ─── Planting ────────────────────────────────────────────────────────────────
 
-export const varietyLabel: Record<Variety, string> = { V22: "V22", V76: "V76" };
+export const varietyLabel: Record<Variety, string> = { AC22: "AC22", AC76: "AC76" };
 export const sexLabel: Record<Sex, string> = {
   FEMALE: "Θηλυκό",
   MALE: "Αρσενικό",
