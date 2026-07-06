@@ -111,23 +111,46 @@ export interface FieldAnalysis {
   updated_at: string;
 }
 
+/**
+ * One production (or estimate) record per field per harvest year.
+ * Only the two fruit-bearing varieties produce; males never do.
+ */
 export interface ProductionRecord {
   id: string;
-  planting_id: string;
+  field_id: string;
   harvest_year: number;
-  // Breakdown by category × size grade
-  cat_a_1kg: number;
-  cat_a_2kg: number;
-  cat_a_3kg: number;
-  cat_b_1kg: number;
-  cat_b_2kg: number;
-  cat_b_3kg: number;
-  spoiled_1kg: number;
-  spoiled_2kg: number;
-  spoiled_3kg: number;
-  // Pre-computed total (sum of all above)
+  // Yield in kg per fruit variety
+  ac22_kg: number;
+  ac76_kg: number;
+  // Pre-computed total (ac22_kg + ac76_kg)
   quantity_kg: number;
+  /** `false` → actual production, `true` → estimate. */
   is_estimate: boolean;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Settlement (Εκκαθάριση) ─────────────────────────────────────────────────
+
+export type SettlementFileType = "EXCEL" | "PDF";
+
+/** A single uploaded settlement document (Excel or PDF). */
+export interface SettlementFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_type: SettlementFileType;
+  size_bytes?: number;
+  uploaded_at: string;
+}
+
+/** One settlement record per field per year, holding one or more files. */
+export interface Settlement {
+  id: string;
+  field_id: string;
+  year: number;
+  files: SettlementFile[];
   notes?: string;
   created_at: string;
   updated_at: string;

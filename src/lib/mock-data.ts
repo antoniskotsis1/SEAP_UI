@@ -16,6 +16,9 @@ import type {
   Variety,
   VarietyCount,
   ProductionRecord,
+  Settlement,
+  SettlementFile,
+  SettlementFileType,
   FinancialTransaction,
   FieldPhoto,
   FieldIssue,
@@ -270,59 +273,111 @@ function generatePlantings(fields: Field[]): Planting[] {
   return plantings;
 }
 
-function mkProductionBreakdown() {
-  const catA1 = randDec(100, 2500, 0);
-  const catA2 = randDec(200, 4500, 0);
-  const catA3 = randDec(50,  1500, 0);
-  const catB1 = randDec(50,  1200, 0);
-  const catB2 = randDec(80,  2000, 0);
-  const catB3 = randDec(30,  800,  0);
-  const sp1   = randDec(10,  300,  0);
-  const sp2   = randDec(20,  500,  0);
-  const sp3   = randDec(5,   200,  0);
-  return {
-    cat_a_1kg: catA1, cat_a_2kg: catA2, cat_a_3kg: catA3,
-    cat_b_1kg: catB1, cat_b_2kg: catB2, cat_b_3kg: catB3,
-    spoiled_1kg: sp1, spoiled_2kg: sp2, spoiled_3kg: sp3,
-    quantity_kg: catA1 + catA2 + catA3 + catB1 + catB2 + catB3 + sp1 + sp2 + sp3,
-  };
-}
+/**
+ * One production record per field per harvest year. Yield is split across the
+ * two fruit varieties (AC22 / AC76) the field actually grows — males never
+ * produce, so a field with only males yields no record at all.
+ */
+function generateProduction(
+  fields: Field[],
+  plantings: Planting[],
+): ProductionRecord[] {
+  // Which varieties each field grows, and the earliest planting year.
+  const varietiesByField = new Map<string, Set<Variety>>();
+  const startYearByField = new Map<string, number>();
+  plantings.forEach((p) => {
+    const set = varietiesByField.get(p.field_id) ?? new Set<Variety>();
+    p.varieties.forEach((v) => set.add(v.variety));
+    varietiesByField.set(p.field_id, set);
+    const y = p.planting_year ?? 0;
+    const prev = startYearByField.get(p.field_id);
+    if (prev === undefined || y < prev) startYearByField.set(p.field_id, y);
+  });
 
-function generateProduction(plantings: Planting[]): ProductionRecord[] {
   const records: ProductionRecord[] = [];
-  // Only fruit-bearing plantings (those with AC22/AC76) produce a harvest.
-  const fruitPlantings = plantings.filter((p) =>
-    p.varieties.some((v) => v.variety !== "MALE"),
-  );
-  fruitPlantings.forEach((p) => {
+  fields.forEach((f) => {
+    const grown = varietiesByField.get(f.id);
+    if (!grown) return;
+    const hasAC22 = grown.has("AC22");
+    const hasAC76 = grown.has("AC76");
+    if (!hasAC22 && !hasAC76) return; // males only → no production
+    const start = startYearByField.get(f.id) ?? 0;
+
+    const mkYield = () => {
+      const ac22 = hasAC22 ? randDec(500, 6000, 0) : 0;
+      const ac76 = hasAC76 ? randDec(400, 4500, 0) : 0;
+      return { ac22_kg: ac22, ac76_kg: ac76, quantity_kg: ac22 + ac76 };
+    };
+
     for (const year of [2023, 2024]) {
-      if ((p.planting_year ?? 0) > year) continue;
+      if (start > year) continue;
       const ts = isoDate(year, 10, randInt(1, 28));
       records.push({
         id: uid(),
-        planting_id: p.id,
+        field_id: f.id,
         harvest_year: year,
-        ...mkProductionBreakdown(),
+        ...mkYield(),
         is_estimate: false,
         notes: Math.random() > 0.8 ? "Καλή χρονιά" : undefined,
         created_at: ts,
         updated_at: ts,
       });
     }
-    if ((p.planting_year ?? 0) <= 2025) {
-      records.push({
+    // Current-year figure is still an estimate.
+    records.push({
+      id: uid(),
+      field_id: f.id,
+      harvest_year: 2025,
+      ...mkYield(),
+      is_estimate: true,
+      notes: "Εκτίμηση",
+      created_at: isoNow(),
+      updated_at: isoNow(),
+    });
+  });
+  return records;
+}
+
+// ─── Settlement (Εκκαθάριση) generation ──────────────────────────────────────
+
+const SETTLEMENT_TYPES: SettlementFileType[] = ["EXCEL", "PDF"];
+
+function mkSettlementFile(fieldId: string, year: number, i: number): SettlementFile {
+  const type = pick(SETTLEMENT_TYPES);
+  const ext = type === "PDF" ? "pdf" : "xlsx";
+  const name = `ekkatharisi-${year}-${fieldId}-${i + 1}.${ext}`;
+  return {
+    id: uid(),
+    file_name: name,
+    file_url: `/mock/settlements/${name}`,
+    file_type: type,
+    size_bytes: randInt(20_000, 400_000),
+    uploaded_at: isoDate(year, 11, randInt(1, 28)),
+  };
+}
+
+function generateSettlements(fields: Field[]): Settlement[] {
+  const settlements: Settlement[] = [];
+  fields.forEach((f) => {
+    if (Math.random() > 0.4) return; // ~40% of fields have settlements
+    for (const year of [2023, 2024]) {
+      if (Math.random() > 0.7) continue;
+      const numFiles = randInt(1, 3);
+      const ts = isoDate(year, 12, randInt(1, 28));
+      settlements.push({
         id: uid(),
-        planting_id: p.id,
-        harvest_year: 2025,
-        ...mkProductionBreakdown(),
-        is_estimate: true,
-        notes: "Εκτίμηση",
-        created_at: isoNow(),
-        updated_at: isoNow(),
+        field_id: f.id,
+        year,
+        files: Array.from({ length: numFiles }, (_, i) =>
+          mkSettlementFile(f.id, year, i),
+        ),
+        notes: undefined,
+        created_at: ts,
+        updated_at: ts,
       });
     }
   });
-  return records;
+  return settlements;
 }
 
 function generateFinancials(producers: Producer[]): FinancialTransaction[] {
@@ -425,7 +480,8 @@ function generateIssues(fields: Field[]): FieldIssue[] {
 const producers = generateProducers();
 const fields = generateFields(producers);
 const plantings = generatePlantings(fields);
-const production = generateProduction(plantings);
+const production = generateProduction(fields, plantings);
+const settlements = generateSettlements(fields);
 const financials = generateFinancials(producers);
 const photos = generatePhotos(fields);
 const issues = generateIssues(fields);
@@ -451,11 +507,15 @@ export type PlantingWithField = Planting & {
   variety_keys: Variety[];
 };
 export type ProductionWithContext = ProductionRecord & {
-  field_id: string;
   producer_id: string;
   field_name: string;
   owner_name: string;
-  variety: string;
+};
+export type SettlementWithContext = Settlement & {
+  producer_id: string;
+  field_name: string;
+  owner_name: string;
+  file_count: number;
 };
 export type FinancialWithOwner = FinancialTransaction & { owner_name: string };
 export type PhotoWithField = FieldPhoto & { field_name: string; owner_name: string; producer_id: string };
@@ -508,21 +568,29 @@ function enrichPlantings(): PlantingWithField[] {
 
 function enrichProduction(): ProductionWithContext[] {
   return production.map((r) => {
-    const planting = plantingMap.get(r.planting_id);
-    const field = planting ? fieldMap.get(planting.field_id) : undefined;
+    const field = fieldMap.get(r.field_id);
     return {
       ...r,
-      field_id: field?.id ?? "",
       producer_id: field?.producer_id ?? "",
-      variety:
-        planting?.varieties
-          .filter((v) => v.variety !== "MALE")
-          .map((v) => v.variety)
-          .join("/") || "—",
       field_name: field?.location_name ?? "—",
       owner_name: field
         ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
+    };
+  });
+}
+
+function enrichSettlements(): SettlementWithContext[] {
+  return settlements.map((s) => {
+    const field = fieldMap.get(s.field_id);
+    return {
+      ...s,
+      producer_id: field?.producer_id ?? "",
+      field_name: field?.location_name ?? "—",
+      owner_name: field
+        ? producerMap.get(field.producer_id)?.display_name ?? "—"
+        : "—",
+      file_count: s.files.length,
     };
   });
 }
@@ -629,7 +697,9 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
   "/api/plantings": (p) =>
     queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety_keys", "rootstock"]),
   "/api/production": (p) =>
-    queryEngine(enrichProduction(), p, ["field_name", "owner_name", "variety"]),
+    queryEngine(enrichProduction(), p, ["field_name", "owner_name"]),
+  "/api/settlements": (p) =>
+    queryEngine(enrichSettlements(), p, ["field_name", "owner_name", "notes"]),
   "/api/financials": (p) =>
     queryEngine(enrichFinancials(), p, ["owner_name", "vat_note", "notes"]),
   "/api/field-photos": (p) =>
@@ -870,6 +940,99 @@ function updatePlanting(id: string, body: PlantingInput): Planting | null {
   return existing;
 }
 
+/** Fields a client is allowed to set on a production record. */
+type ProductionInput = Partial<
+  Pick<
+    ProductionRecord,
+    "field_id" | "harvest_year" | "ac22_kg" | "ac76_kg" | "is_estimate" | "notes"
+  >
+>;
+
+function createProduction(body: ProductionInput): ProductionRecord {
+  const now = new Date().toISOString();
+  const ac22 = Number(body.ac22_kg) || 0;
+  const ac76 = Number(body.ac76_kg) || 0;
+  const record: ProductionRecord = {
+    id: uid(),
+    field_id: body.field_id ?? "",
+    harvest_year: Number(body.harvest_year) || new Date().getFullYear(),
+    ac22_kg: ac22,
+    ac76_kg: ac76,
+    quantity_kg: ac22 + ac76,
+    is_estimate: !!body.is_estimate,
+    notes: blankToUndef(body.notes),
+    created_at: now,
+    updated_at: now,
+  };
+  production.push(record);
+  return record;
+}
+
+function updateProduction(id: string, body: ProductionInput): ProductionRecord | null {
+  const existing = production.find((r) => r.id === id);
+  if (!existing) return null;
+  if (body.field_id) existing.field_id = body.field_id;
+  if (body.harvest_year !== undefined) existing.harvest_year = Number(body.harvest_year);
+  if (body.ac22_kg !== undefined) existing.ac22_kg = Number(body.ac22_kg) || 0;
+  if (body.ac76_kg !== undefined) existing.ac76_kg = Number(body.ac76_kg) || 0;
+  existing.quantity_kg = existing.ac22_kg + existing.ac76_kg;
+  if (body.is_estimate !== undefined) existing.is_estimate = !!body.is_estimate;
+  existing.notes = blankToUndef(body.notes);
+  existing.updated_at = new Date().toISOString();
+  return existing;
+}
+
+/** Fields a client is allowed to set on a settlement. */
+type SettlementInput = Partial<
+  Pick<Settlement, "field_id" | "year" | "files" | "notes">
+>;
+
+/** Give newly-uploaded settlement files the server-side fields the client can't set. */
+function normalizeSettlementFiles(
+  list?: Partial<SettlementFile>[],
+): SettlementFile[] {
+  if (!list) return [];
+  return list.map((a) => {
+    const name = a.file_name ?? "settlement.xlsx";
+    const type: SettlementFileType =
+      a.file_type ?? (name.toLowerCase().endsWith(".pdf") ? "PDF" : "EXCEL");
+    return {
+      id: a.id ?? uid(),
+      file_name: name,
+      file_url: a.file_url ?? `/mock/settlements/${name}`,
+      file_type: type,
+      size_bytes: a.size_bytes,
+      uploaded_at: a.uploaded_at ?? new Date().toISOString(),
+    };
+  });
+}
+
+function createSettlement(body: SettlementInput): Settlement {
+  const now = new Date().toISOString();
+  const settlement: Settlement = {
+    id: uid(),
+    field_id: body.field_id ?? "",
+    year: Number(body.year) || new Date().getFullYear(),
+    files: normalizeSettlementFiles(body.files),
+    notes: blankToUndef(body.notes),
+    created_at: now,
+    updated_at: now,
+  };
+  settlements.push(settlement);
+  return settlement;
+}
+
+function updateSettlement(id: string, body: SettlementInput): Settlement | null {
+  const existing = settlements.find((s) => s.id === id);
+  if (!existing) return null;
+  if (body.field_id) existing.field_id = body.field_id;
+  if (body.year !== undefined) existing.year = Number(body.year);
+  if (body.files) existing.files = normalizeSettlementFiles(body.files);
+  existing.notes = blankToUndef(body.notes);
+  existing.updated_at = new Date().toISOString();
+  return existing;
+}
+
 // ─── Intercept fetch ─────────────────────────────────────────────────────────
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -933,6 +1096,28 @@ export function setupMockApi() {
           : jsonResponse({ message: "Not found" }, 404);
       }
 
+      if (path === "/api/production" && method === "POST") {
+        return jsonResponse(createProduction(body as ProductionInput), 201);
+      }
+      const productionEdit = path?.match(/^\/api\/production\/([^/]+)$/);
+      if (productionEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updateProduction(productionEdit[1]!, body as ProductionInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
+      if (path === "/api/settlements" && method === "POST") {
+        return jsonResponse(createSettlement(body as SettlementInput), 201);
+      }
+      const settlementEdit = path?.match(/^\/api\/settlements\/([^/]+)$/);
+      if (settlementEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updateSettlement(settlementEdit[1]!, body as SettlementInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
       return jsonResponse({ message: "Method not allowed" }, 405);
     }
 
@@ -946,12 +1131,13 @@ export function setupMockApi() {
   };
 
   console.log(
-    "%c🫒 SEAPP Mock API active — %d producers, %d fields, %d plantings, %d production records, %d transactions",
+    "%c🫒 SEAPP Mock API active — %d producers, %d fields, %d plantings, %d production records, %d settlements, %d transactions",
     "color: #13a319; font-weight: bold",
     producers.length,
     fields.length,
     plantings.length,
     production.length,
+    settlements.length,
     financials.length
   );
 }
