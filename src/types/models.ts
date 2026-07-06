@@ -2,8 +2,7 @@
 
 export type ProducerStatus = "LEAD" | "ACTIVE" | "INACTIVE";
 
-export type Variety = "AC22" | "AC76";
-export type Sex = "FEMALE" | "MALE";
+export type Variety = "MALE" | "AC22" | "AC76";
 export type PlantingMethod = "PLANTING" | "GRAFTING" | "MIX";
 export type TrainingShape = "FISHBONE" | "UMBRELLA" | "OTHER" | "MIX";
 
@@ -77,11 +76,18 @@ export interface Field {
   updated_at: string;
 }
 
+/** Number of trees of a single variety within a planting. */
+export interface VarietyCount {
+  variety: Variety;
+  tree_count: number;
+}
+
 export interface Planting {
   id: string;
   field_id: string;
-  sex: Sex;
-  variety?: Variety;
+  /** Per-variety tree counts; a planting may contain any of the three varieties. */
+  varieties: VarietyCount[];
+  /** Total trees across all varieties (sum of `varieties[].tree_count`). */
   tree_count: number;
   planting_year?: number;
   planting_method?: PlantingMethod;

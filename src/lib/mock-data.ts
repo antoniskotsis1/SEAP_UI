@@ -13,6 +13,8 @@ import type {
   Field,
   FieldAnalysisFile,
   Planting,
+  Variety,
+  VarietyCount,
   ProductionRecord,
   FinancialTransaction,
   FieldPhoto,
@@ -238,14 +240,24 @@ function generateFields(producers: Producer[]): Field[] {
 function generatePlantings(fields: Field[]): Planting[] {
   const plantings: Planting[] = [];
   fields.forEach((f) => {
-    // Each field has 1–2 plantings (female + maybe male)
+    // Each field has exactly one planting per year. Every planting bears at
+    // least one fruit variety and ~70% also include the male pollinator, each
+    // variety carrying its own tree count.
     const ts = pastDate(2);
+    const varieties: VarietyCount[] = [
+      { variety: pick<Variety>(["AC22", "AC22", "AC22", "AC76"]), tree_count: randInt(80, 500) },
+    ];
+    if (Math.random() > 0.5 && !varieties.some((v) => v.variety === "AC76")) {
+      varieties.push({ variety: "AC76", tree_count: randInt(50, 300) });
+    }
+    if (Math.random() > 0.3) {
+      varieties.push({ variety: "MALE", tree_count: randInt(5, 40) });
+    }
     plantings.push({
       id: uid(),
       field_id: f.id,
-      variety: pick(["AC22", "AC22", "AC22", "AC76"]),
-      sex: "FEMALE",
-      tree_count: randInt(50, 500),
+      varieties,
+      tree_count: varieties.reduce((s, v) => s + v.tree_count, 0),
       planting_year: pick([2020, 2021, 2022, 2023, 2024, 2025]),
       planting_method: pick(["PLANTING", "GRAFTING"]),
       training_shape: pick(["FISHBONE", "UMBRELLA", "OTHER"]),
@@ -254,23 +266,6 @@ function generatePlantings(fields: Field[]): Planting[] {
       created_at: ts,
       updated_at: ts,
     });
-    // ~70% chance of having male trees too
-    if (Math.random() > 0.3) {
-      plantings.push({
-        id: uid(),
-        field_id: f.id,
-        variety: "AC22",
-        sex: "MALE",
-        tree_count: randInt(5, 50),
-        planting_year: pick([2020, 2021, 2022, 2023, 2024]),
-        planting_method: pick(["PLANTING", "GRAFTING"]),
-        training_shape: pick(["FISHBONE", "UMBRELLA", "OTHER"]),
-        rootstock: pick(ROOTSTOCKS),
-        spacing: pick(SPACINGS),
-        created_at: ts,
-        updated_at: ts,
-      });
-    }
   });
   return plantings;
 }
@@ -295,8 +290,11 @@ function mkProductionBreakdown() {
 
 function generateProduction(plantings: Planting[]): ProductionRecord[] {
   const records: ProductionRecord[] = [];
-  const femalePlantings = plantings.filter((p) => p.sex === "FEMALE");
-  femalePlantings.forEach((p) => {
+  // Only fruit-bearing plantings (those with AC22/AC76) produce a harvest.
+  const fruitPlantings = plantings.filter((p) =>
+    p.varieties.some((v) => v.variety !== "MALE"),
+  );
+  fruitPlantings.forEach((p) => {
     for (const year of [2023, 2024]) {
       if ((p.planting_year ?? 0) > year) continue;
       const ts = isoDate(year, 10, randInt(1, 28));
@@ -445,7 +443,13 @@ plantings.forEach((p) => {
 });
 
 // Augmented types for display (add joined names)
-export type PlantingWithField = Planting & { field_name: string; owner_name: string; producer_id: string };
+export type PlantingWithField = Planting & {
+  field_name: string;
+  owner_name: string;
+  producer_id: string;
+  /** Flat variety keys, for filtering/searching (the query engine can't see into objects). */
+  variety_keys: Variety[];
+};
 export type ProductionWithContext = ProductionRecord & {
   field_id: string;
   producer_id: string;
@@ -474,13 +478,12 @@ function enrichFields(): Field[] {
   return fields.map((f) => {
     const fp = plantingsByFieldId.get(f.id) ?? [];
     const parts: string[] = [];
-    fp.filter((p) => p.sex === "FEMALE").forEach((p) =>
-      parts.push(`${p.tree_count} ${p.variety ?? "?"}`)
-    );
-    const maleTrees = fp
-      .filter((p) => p.sex === "MALE")
-      .reduce((s, p) => s + p.tree_count, 0);
-    if (maleTrees > 0) parts.push(`${maleTrees} ♂`);
+    fp.forEach((p) => {
+      p.varieties.forEach((v) => {
+        const label = v.variety === "MALE" ? "♂" : v.variety;
+        parts.push(`${v.tree_count} ${label}`);
+      });
+    });
     return {
       ...f,
       planting_summary: parts.length > 0 ? parts.join(" + ") : undefined,
@@ -498,6 +501,7 @@ function enrichPlantings(): PlantingWithField[] {
       owner_name: field
         ? producerMap.get(field.producer_id)?.display_name ?? "—"
         : "—",
+      variety_keys: p.varieties.map((v) => v.variety),
     };
   });
 }
@@ -510,7 +514,11 @@ function enrichProduction(): ProductionWithContext[] {
       ...r,
       field_id: field?.id ?? "",
       producer_id: field?.producer_id ?? "",
-      variety: planting?.variety ?? "—",
+      variety:
+        planting?.varieties
+          .filter((v) => v.variety !== "MALE")
+          .map((v) => v.variety)
+          .join("/") || "—",
       field_name: field?.location_name ?? "—",
       owner_name: field
         ? producerMap.get(field.producer_id)?.display_name ?? "—"
@@ -580,7 +588,13 @@ function queryEngine<T extends object>(
   const reserved = new Set(["page", "page_size", "search", "sort_by", "sort_dir"]);
   params.forEach((value, key) => {
     if (reserved.has(key) || !value) return;
-    result = result.filter((row) => String(asMap(row)[key]) === value);
+    result = result.filter((row) => {
+      const cell = asMap(row)[key];
+      // Array-valued columns (e.g. varieties) match on membership.
+      return Array.isArray(cell)
+        ? cell.map(String).includes(value)
+        : String(cell) === value;
+    });
   });
 
   // Sort
@@ -613,7 +627,7 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
   "/api/fields": (p) =>
     queryEngine(enrichFields(), p, ["location_name", "producer_name"]),
   "/api/plantings": (p) =>
-    queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety", "rootstock"]),
+    queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety_keys", "rootstock"]),
   "/api/production": (p) =>
     queryEngine(enrichProduction(), p, ["field_name", "owner_name", "variety"]),
   "/api/financials": (p) =>
@@ -793,6 +807,69 @@ function updateField(id: string, body: FieldInput): Field | null {
   return existing;
 }
 
+/** Fields a client is allowed to set on a planting. */
+type PlantingInput = Partial<
+  Pick<
+    Planting,
+    | "field_id"
+    | "varieties"
+    | "planting_year"
+    | "planting_method"
+    | "training_shape"
+    | "rootstock"
+    | "spacing"
+  >
+>;
+
+/** Keep only real varieties with a positive count, and sum the total. */
+function normalizeVarieties(list?: VarietyCount[]): VarietyCount[] {
+  return (list ?? [])
+    .filter((v) => v.variety && Number(v.tree_count) > 0)
+    .map((v) => ({ variety: v.variety, tree_count: Number(v.tree_count) }));
+}
+
+function createPlanting(body: PlantingInput): Planting {
+  const now = new Date().toISOString();
+  const varieties = normalizeVarieties(body.varieties);
+  const planting: Planting = {
+    id: uid(),
+    field_id: body.field_id ?? "",
+    varieties,
+    tree_count: varieties.reduce((s, v) => s + v.tree_count, 0),
+    planting_year: body.planting_year,
+    planting_method: body.planting_method,
+    training_shape: body.training_shape,
+    rootstock: blankToUndef(body.rootstock),
+    spacing: blankToUndef(body.spacing),
+    created_at: now,
+    updated_at: now,
+  };
+  plantings.push(planting);
+  plantingMap.set(planting.id, planting);
+  plantingsByFieldId.set(planting.field_id, [
+    ...(plantingsByFieldId.get(planting.field_id) ?? []),
+    planting,
+  ]);
+  return planting;
+}
+
+function updatePlanting(id: string, body: PlantingInput): Planting | null {
+  const existing = plantingMap.get(id);
+  if (!existing) return null;
+  if (body.field_id) existing.field_id = body.field_id;
+  if (body.varieties) {
+    existing.varieties = normalizeVarieties(body.varieties);
+    existing.tree_count = existing.varieties.reduce((s, v) => s + v.tree_count, 0);
+  }
+  if (body.planting_year !== undefined) existing.planting_year = body.planting_year;
+  if (body.planting_method !== undefined) existing.planting_method = body.planting_method;
+  if (body.training_shape !== undefined) existing.training_shape = body.training_shape;
+  existing.rootstock = blankToUndef(body.rootstock);
+  existing.spacing = blankToUndef(body.spacing);
+  existing.updated_at = new Date().toISOString();
+  return existing;
+}
+
 // ─── Intercept fetch ─────────────────────────────────────────────────────────
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -840,6 +917,17 @@ export function setupMockApi() {
       const fieldEdit = path?.match(/^\/api\/fields\/([^/]+)$/);
       if (fieldEdit && (method === "PATCH" || method === "PUT")) {
         const updated = updateField(fieldEdit[1]!, body as FieldInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
+      if (path === "/api/plantings" && method === "POST") {
+        return jsonResponse(createPlanting(body as PlantingInput), 201);
+      }
+      const plantingEdit = path?.match(/^\/api\/plantings\/([^/]+)$/);
+      if (plantingEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updatePlanting(plantingEdit[1]!, body as PlantingInput);
         return updated
           ? jsonResponse(updated)
           : jsonResponse({ message: "Not found" }, 404);
