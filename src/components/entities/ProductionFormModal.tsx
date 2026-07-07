@@ -134,9 +134,11 @@ export function ProductionFormModal({
           ))}
         </SelectField>
 
+        {/* Estimates are always for the current year, so the field is locked. */}
         <TextField
           label="Έτος"
           isRequired
+          isDisabled={isEstimate}
           value={form.harvest_year}
           onChange={(v) => set("harvest_year", v)}
           inputProps={{ type: "number", step: "1" }}

@@ -2,6 +2,7 @@ import { FiEdit2 } from "react-icons/fi";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { DetailRow } from "@/components/ui/DescriptionList";
+import { VarietyPills } from "@/components/ui/VarietyPills";
 import { formatMonthYear } from "@/lib/utils";
 import { methodLabel, shapeLabel } from "@/lib/labels";
 import type { Field } from "@/types";
@@ -47,10 +48,15 @@ export function FieldDetailModal({
             label="Στρέμματα"
             value={field.stremmata != null ? String(field.stremmata) : null}
           />
-          <DetailRow label="Αρ. Δέντρων / Ποικιλία" value={field.planting_summary} />
+          <DetailRow
+            label="Αρ. Δέντρων"
+            value={<VarietyPills varieties={field.planting_varieties} />}
+          />
           <DetailRow
             label="Σύνολο Δέντρων"
-            value={field.total_plants != null ? String(field.total_plants) : null}
+            value={
+              field.total_plants != null ? String(field.total_plants) : null
+            }
           />
           <DetailRow
             label="Ημερομηνία Φύτευσης"
@@ -60,11 +66,15 @@ export function FieldDetailModal({
           />
           <DetailRow
             label="Μέθοδος Φύτευσης"
-            value={field.planting_method ? methodLabel[field.planting_method] : null}
+            value={
+              field.planting_method ? methodLabel[field.planting_method] : null
+            }
           />
           <DetailRow
             label="Σχήμα Διαμόρφωσης"
-            value={field.training_shape ? shapeLabel[field.training_shape] : null}
+            value={
+              field.training_shape ? shapeLabel[field.training_shape] : null
+            }
           />
           <DetailRow label="Υποκείμενο" value={field.rootstock} />
           <DetailRow label="Αποστάσεις Φύτευσης" value={field.spacing} />

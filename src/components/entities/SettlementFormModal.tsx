@@ -3,9 +3,9 @@ import { FiFileText, FiFile, FiDownload } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { FormModal } from "@/components/ui/FormModal";
 import { TextField } from "@/components/ui/TextField";
-import { SelectField } from "@/components/ui/SelectField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
 import { api } from "@/lib/api";
-import type { Field, Settlement, SettlementFile } from "@/types";
+import type { Settlement, SettlementFile } from "@/types";
 
 interface SettlementFormModalProps {
   open: boolean;
@@ -16,21 +16,22 @@ interface SettlementFormModalProps {
 }
 
 type SettlementForm = {
-  field_id: string;
   year: string;
+  comments: string;
 };
 
 const emptyForm: SettlementForm = {
-  field_id: "",
   year: String(new Date().getFullYear()),
+  comments: "",
 };
 
 const fileTypeOf = (name: string): "PDF" | "EXCEL" =>
   name.toLowerCase().endsWith(".pdf") ? "PDF" : "EXCEL";
 
 /**
- * Create/edit dialog for a settlement (Εκκαθάριση) — one per field per year,
- * holding one or more Excel/PDF files.
+ * Create/edit dialog for a settlement (Εκκαθάριση) — one per year. The partner's
+ * files already cover every field, so we only capture the year, the file(s), and
+ * optional comments.
  */
 export function SettlementFormModal({
   open,
@@ -40,22 +41,14 @@ export function SettlementFormModal({
 }: SettlementFormModalProps) {
   const isEdit = !!settlement;
   const [form, setForm] = useState<SettlementForm>(emptyForm);
-  const [fields, setFields] = useState<Field[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api
-      .list<Field>("/fields", { page_size: 1000, sort_by: "location_name" })
-      .then((r) => setFields(r.data))
-      .catch(() => setFields([]));
-  }, []);
 
   useEffect(() => {
     if (open) {
       setForm(
         settlement
-          ? { field_id: settlement.field_id, year: String(settlement.year) }
+          ? { year: String(settlement.year), comments: settlement.comments ?? "" }
           : emptyForm,
       );
       setNewFiles([]);
@@ -66,10 +59,6 @@ export function SettlementFormModal({
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
-    if (!form.field_id.trim()) {
-      toast.error("Το χωράφι είναι υποχρεωτικό");
-      return;
-    }
     if (!form.year.trim()) {
       toast.error("Το έτος είναι υποχρεωτικό");
       return;
@@ -85,9 +74,9 @@ export function SettlementFormModal({
       return;
     }
     const payload = {
-      field_id: form.field_id,
       year: Number(form.year),
       files,
+      comments: form.comments,
     };
     setSaving(true);
     try {
@@ -117,20 +106,6 @@ export function SettlementFormModal({
       submitLabel={isEdit ? "Αποθήκευση" : "Δημιουργία"}
     >
       <div className="space-y-4">
-        <SelectField
-          label="Χωράφι"
-          required
-          value={form.field_id}
-          onChange={(e) => set("field_id", e.target.value)}
-        >
-          <option value="">— Επιλέξτε χωράφι —</option>
-          {fields.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.location_name} — {f.producer_name}
-            </option>
-          ))}
-        </SelectField>
-
         <TextField
           label="Έτος"
           isRequired
@@ -185,6 +160,13 @@ export function SettlementFormModal({
             </ul>
           )}
         </div>
+
+        <TextAreaField
+          label="Σχόλια"
+          value={form.comments}
+          onChange={(v) => set("comments", v)}
+          placeholder="Προαιρετικά σχόλια για την εκκαθάριση…"
+        />
       </div>
     </FormModal>
   );

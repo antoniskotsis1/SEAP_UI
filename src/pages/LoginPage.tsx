@@ -31,8 +31,7 @@ export function LoginPage() {
   const [isPending, setIsPending] = useState(false);
 
   // Where to go after a successful login (falls back to the dashboard).
-  const from =
-    (location.state as { from?: string } | null)?.from ?? "/";
+  const from = (location.state as { from?: string } | null)?.from ?? "/";
 
   if (isAuthenticated) {
     return <Navigate to={from} replace />;
@@ -47,7 +46,9 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Η σύνδεση απέτυχε. Δοκιμάστε ξανά.",
+        err instanceof Error
+          ? err.message
+          : "Η σύνδεση απέτυχε. Δοκιμάστε ξανά.",
       );
     } finally {
       setIsPending(false);
@@ -76,10 +77,10 @@ export function LoginPage() {
           <h1 className="text-3xl font-bold leading-tight text-white">
             Διαχείριση παραγωγής
             <br />
-            ακτινιδίων, οργανωμένα.
+            ακτινιδίων.
           </h1>
           <p className="mt-4 text-brand-100">
-            Παραγωγοί, χωράφια, παραγωγή και τεκμηρίωση — όλα σε μία πλατφόρμα.
+            Παραγωγοί, χωράφια, παραγωγή — όλα σε μία πλατφόρμα.
           </p>
 
           <ul className="mt-8 space-y-4">

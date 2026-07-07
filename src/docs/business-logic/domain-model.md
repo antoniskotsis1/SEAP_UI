@@ -7,6 +7,7 @@ _meaning_ and _rules_ behind those types. Field-by-field column lists belong in
 ## Entities & relationships
 
 ### Producer
+
 A kiwi grower (person or business). Core record everything else hangs off.
 
 - Has a `status`: `LEAD` (Lead), `ACTIVE` (Ενεργός), `INACTIVE` (Ανενεργός).
@@ -17,6 +18,7 @@ A kiwi grower (person or business). Core record everything else hangs off.
   all the producer's fields — never edit it directly; it is computed.
 
 ### Field (Χωράφι)
+
 A single agricultural plot belonging to one producer.
 
 - Belongs to **exactly one Producer** (`producer_id`). `producer_name` is
@@ -31,6 +33,7 @@ A single agricultural plot belonging to one producer.
 - A field can have attached `analyses` (soil/leaf analysis spreadsheets).
 
 ### Planting (Φύτευση)
+
 The **variety composition** of a field — how many trees of each variety it holds.
 
 - Belongs to **one Field** (`field_id`).
@@ -38,7 +41,7 @@ The **variety composition** of a field — how many trees of each variety it hol
   the three varieties. `tree_count` on the planting is the **sum** across
   `varieties[].tree_count`.
 - Carries its own `planting_method`, `training_shape`, `rootstock`, `spacing`,
-  and `planting_year`.
+  and `planting_year`, plus optional free-text `comments`.
 
 > **Business rule (confirm if changing):** conceptually a field has **one**
 > planting describing its variety mix. The schema keys `Planting` by `field_id`
@@ -47,7 +50,8 @@ The **variety composition** of a field — how many trees of each variety it hol
 > allow more than one). `Field.planting_summary` is the derived one-line version.
 
 ### Variety (Ποικιλία)
-Three values: `MALE` (Αρσενικό), `AC22`, `AC76`.
+
+Three values: `MALE` (Αρσενικά), `AC22`, `AC76`.
 
 - **Only `AC22` and `AC76` bear fruit.** `MALE` vines are pollinators and never
   have yield. This is the single most important invariant in the app — see
@@ -56,20 +60,26 @@ Three values: `MALE` (Αρσενικό), `AC22`, `AC76`.
   `labels.ts`).
 
 ### ProductionRecord & Settlement
+
 The yearly output of a field. Because this is the subtle part, it has its own
 document: **`production-and-settlements.md`**. Summary:
 
 - `ProductionRecord` — one per field per `harvest_year`; `is_estimate`
   distinguishes an **estimate** from **actual** production.
-- `Settlement` (Εκκαθάριση) — a **separate** entity, one per field per `year`,
-  holding one or more official files (Excel/PDF).
+- `Settlement` (Εκκαθάριση) — a **separate** entity, one **per `year`** (not per
+  field). The external partner sends one or more files that already cover every
+  field for that year; we archive those files (Excel/PDF) against the year, with
+  optional free-text `comments`.
 
 ### FieldPhoto & FieldIssue
-Photographic documentation of field work, and problems flagged from those photos.
+
+Photographic documentation of field work, and problems flagged on a field.
 Covered in **`photos-and-issues.md`**. Summary: every photo has one of 6
-categories; an issue is always attached to a photo.
+categories; an issue always belongs to a field and **may optionally** originate
+from a photo (`photo_id`) — issues can also be reported standalone.
 
 ### FieldAnalysis (Ανάλυση)
+
 Soil / leaf laboratory analyses attached to a field.
 
 - Belongs to one Field (`field_id`).
@@ -79,6 +89,7 @@ Soil / leaf laboratory analyses attached to a field.
   representation (an uploaded Excel spreadsheet) used in field detail.
 
 ### FinancialTransaction (Οικονομικά)
+
 Money moving between the business and a producer.
 
 - Belongs to a **Producer** (`producer_id`), optionally scoped to a specific
@@ -95,17 +106,17 @@ Money moving between the business and a producer.
 Keep these in sync with `src/lib/labels.ts`. The English key is what's stored;
 the Greek string is what users see.
 
-| Enum | Value → Label |
-| --- | --- |
-| `ProducerStatus` | `LEAD`→Lead · `ACTIVE`→Ενεργός · `INACTIVE`→Ανενεργός |
-| `Variety` | `AC22`→AC22 · `AC76`→AC76 · `MALE`→Αρσενικό |
-| `PlantingMethod` | `PLANTING`→Φύτευση · `GRAFTING`→Εμβολιασμός · `MIX`→Μεικτό |
-| `TrainingShape` | `FISHBONE`→Ψαροκόκαλο · `UMBRELLA`→Ομπρέλα · `MIX`→Μεικτό · `OTHER`→Άλλο |
-| `TransactionType` | `PAYMENT`→Πληρωμή · `DEBT`→Οφειλή · `OFFSET`→Συμψηφισμός |
-| `InvoiceStatus` | `ISSUED`→Εκδόθηκε · `NOT_ISSUED`→Δεν εκδόθηκε · `PARTIAL`→Μερική |
-| `IssueSeverity` | `LOW`→Χαμηλή · `MEDIUM`→Μέτρια · `HIGH`→Υψηλή |
-| `IssueStatus` | `OPEN`→Ανοιχτό · `RESOLVED`→Επιλύθηκε |
-| `PhotoCategory` | see `photos-and-issues.md` |
+| Enum              | Value → Label                                                            |
+| ----------------- | ------------------------------------------------------------------------ |
+| `ProducerStatus`  | `LEAD`→Lead · `ACTIVE`→Ενεργός · `INACTIVE`→Ανενεργός                    |
+| `Variety`         | `AC22`→AC22 · `AC76`→AC76 · `MALE`→Αρσενικά                              |
+| `PlantingMethod`  | `PLANTING`→Φύτευση · `GRAFTING`→Εμβολιασμός · `MIX`→Μεικτό               |
+| `TrainingShape`   | `FISHBONE`→Ψαροκόκαλο · `UMBRELLA`→Ομπρέλα · `MIX`→Μεικτό · `OTHER`→Άλλο |
+| `TransactionType` | `PAYMENT`→Πληρωμή · `DEBT`→Οφειλή · `OFFSET`→Συμψηφισμός                 |
+| `InvoiceStatus`   | `ISSUED`→Εκδόθηκε · `NOT_ISSUED`→Δεν εκδόθηκε · `PARTIAL`→Μερική         |
+| `IssueSeverity`   | `LOW`→Χαμηλή · `MEDIUM`→Μέτρια · `HIGH`→Υψηλή                            |
+| `IssueStatus`     | `OPEN`→Ανοιχτό · `RESOLVED`→Επιλύθηκε                                    |
+| `PhotoCategory`   | see `photos-and-issues.md`                                               |
 
 ## Derived / read-only fields — do not edit directly
 

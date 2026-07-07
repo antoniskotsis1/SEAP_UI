@@ -294,8 +294,11 @@ api.list<T>(endpoint, params); // GET with URLSearchParams → PaginatedResponse
 | FinancialTransaction | `/api/financials`   |
 | FieldPhoto           | `/api/field-photos` |
 | FieldIssue           | `/api/field-issues` |
+| Dashboard stats      | `/api/dashboard`    |
 
 All list endpoints accept: `page`, `page_size`, `search`, `sort_by`, `sort_dir`, plus entity-specific filter keys.
+
+`/api/dashboard` is **not** a list endpoint — it returns a single `DashboardStats` object (`activeProducers`, `totalFields`, `totalStremmata`, `totalProduction`, `openIssues`). It carries **no financial data** by design.
 
 Response shape for list endpoints:
 
@@ -464,4 +467,3 @@ The `Sidebar` shows a collapsible Producers section (status sub-links) plus Fiel
 - **Dedicated detail/edit routes** — editing happens in modals; there are no `/entity/:id` routes.
 - **Real file upload** — analysis/settlement/photo files are referenced by URL; no upload pipeline.
 - **Authentication** — no auth layer.
-- **Dashboard data** — DashboardPage exists but StatCards are static.

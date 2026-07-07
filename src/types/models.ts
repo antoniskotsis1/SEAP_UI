@@ -72,6 +72,11 @@ export interface Field {
 
   /** Derived display summary of the field's plantings (trees × variety). */
   planting_summary?: string;
+  /**
+   * Derived per-variety tree counts aggregated across the field's plantings,
+   * for rendering variety pills. Ordered by `VARIETY_ORDER`.
+   */
+  planting_varieties?: VarietyCount[];
   /** Derived count of photos attached to this field (for the photos list). */
   photo_count?: number;
   created_at: string;
@@ -96,6 +101,8 @@ export interface Planting {
   training_shape?: TrainingShape;
   rootstock?: string;
   spacing?: string;
+  /** Free-text notes about this planting. */
+  comments?: string;
   created_at: string;
   updated_at: string;
 }
@@ -147,13 +154,17 @@ export interface SettlementFile {
   uploaded_at: string;
 }
 
-/** One settlement record per field per year, holding one or more files. */
+/**
+ * One settlement record **per year** (not per field). The packing house /
+ * external partner sends one or more files that already cover every field for
+ * that year; we simply archive those files against the year, with optional
+ * free-text comments.
+ */
 export interface Settlement {
   id: string;
-  field_id: string;
   year: number;
   files: SettlementFile[];
-  notes?: string;
+  comments?: string;
   created_at: string;
   updated_at: string;
 }
@@ -191,7 +202,10 @@ export interface FieldPhoto {
 export interface FieldIssue {
   id: string;
   field_id: string;
-  /** The photo this issue was reported from. Every issue is tied to a photo. */
+  /**
+   * The photo this issue was reported from, when it originated from one.
+   * Undefined for issues reported standalone from the issues page.
+   */
   photo_id?: string;
   title: string;
   description: string;
@@ -201,6 +215,85 @@ export interface FieldIssue {
   resolved_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
+/** Actual production for one harvest year, split by fruit variety (kg). */
+export interface ProductionYearPoint {
+  year: number;
+  ac22_kg: number;
+  ac76_kg: number;
+}
+
+/** Total trees of a variety across every field, for the composition chart. */
+export interface VarietyCompositionPoint {
+  variety: Variety;
+  tree_count: number;
+}
+
+/** Count of open issues at a given severity. */
+export interface SeverityCountPoint {
+  severity: IssueSeverity;
+  count: number;
+}
+
+/** Estimate vs. actual production for a single year (kg). */
+export interface EstimateVsActualPoint {
+  year: number;
+  estimate_kg: number;
+  actual_kg: number;
+}
+
+/** Productivity (actual kg per stremma) for one harvest year. */
+export interface YieldPerStremmaPoint {
+  year: number;
+  kg_per_stremma: number;
+}
+
+/** Number of producers in a given status. */
+export interface StatusCountPoint {
+  status: ProducerStatus;
+  count: number;
+}
+
+/** Total land area (stremmata) in a region. */
+export interface RegionStremmataPoint {
+  region: string;
+  stremmata: number;
+}
+
+/** Number of field photos in a given category. */
+export interface CategoryCountPoint {
+  category: PhotoCategory;
+  count: number;
+}
+
+/** Aggregate figures shown on the dashboard. No financial data by design. */
+export interface DashboardStats {
+  activeProducers: number;
+  totalFields: number;
+  /** Total land area across all fields, in stremmata. */
+  totalStremmata: number;
+  /** Actual (non-estimate) production for the latest harvest year, in kg. */
+  totalProduction: number;
+  openIssues: number;
+  /** Actual production per harvest year (AC22 + AC76), oldest → newest. */
+  productionByYear: ProductionYearPoint[];
+  /** Tree population split across AC22 / AC76 / MALE. */
+  varietyComposition: VarietyCompositionPoint[];
+  /** Open issues grouped by severity (LOW / MEDIUM / HIGH). */
+  openIssuesBySeverity: SeverityCountPoint[];
+  /** Estimate vs. actual production for the most recent year with data. */
+  estimateVsActual: EstimateVsActualPoint | null;
+  /** Actual kg per stremma per harvest year, oldest → newest. */
+  yieldPerStremmaByYear: YieldPerStremmaPoint[];
+  /** Producers grouped by status (LEAD / ACTIVE / INACTIVE). */
+  producersByStatus: StatusCountPoint[];
+  /** Total stremmata per region, largest first. */
+  stremmataByRegion: RegionStremmataPoint[];
+  /** Field photos grouped by category. */
+  photosByCategory: CategoryCountPoint[];
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────────────

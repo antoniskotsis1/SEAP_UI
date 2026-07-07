@@ -1,23 +1,11 @@
 import { useState } from "react";
-import { FiFolder, FiPlus, FiMap, FiFile, FiFileText } from "react-icons/fi";
+import { FiFolder, FiPlus, FiFile, FiFileText } from "react-icons/fi";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/tables/DataTable";
-import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
-import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
 import { SettlementFormModal } from "@/components/entities/SettlementFormModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
-import { useLookupModal } from "@/hooks/useLookupModal";
-import type { Settlement, Producer, Field, FilterOption } from "@/types";
-
-// ─── Extended row type ───────────────────────────────────────────────────────
-
-type SettlementRow = Settlement & {
-  producer_id?: string;
-  field_name?: string;
-  owner_name?: string;
-  file_count?: number;
-};
+import type { Settlement, FilterOption } from "@/types";
 
 // ─── Year filter ─────────────────────────────────────────────────────────────
 
@@ -34,99 +22,70 @@ const filterDefs: FilterOption[] = [
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
-function buildColumns(
-  onOwnerClick: (row: SettlementRow) => void,
-  onFieldClick: (row: SettlementRow) => void,
-): Column<SettlementRow>[] {
-  return [
-    {
-      key: "owner_name",
-      header: "Παραγωγός / Χωράφι",
-      render: (row) => (
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOwnerClick(row);
-            }}
-            className="block truncate text-left font-medium text-brand-600 hover:underline"
-          >
-            {row.owner_name || "—"}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onFieldClick(row);
-            }}
-            className="flex items-center gap-1 truncate text-left text-xs text-gray-400 hover:text-brand-500"
-          >
-            <FiMap className="h-3 w-3 shrink-0" />
-            {row.field_name || "—"}
-          </button>
-        </div>
-      ),
-    },
-    {
-      key: "year",
-      header: "Έτος",
-      sortable: true,
-      width: "minmax(80px, 0.5fr)",
-      render: (row) => (
-        <span className="font-medium text-gray-900">{String(row.year)}</span>
-      ),
-    },
-    {
-      key: "files",
-      header: "Αρχεία",
-      width: "minmax(160px, 1fr)",
-      render: (row) => {
-        const excel = row.files.filter((f) => f.file_type === "EXCEL").length;
-        const pdf = row.files.filter((f) => f.file_type === "PDF").length;
-        return (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-medium text-gray-900">
-              {row.files.length} {row.files.length === 1 ? "αρχείο" : "αρχεία"}
+const columns: Column<Settlement>[] = [
+  {
+    key: "year",
+    header: "Έτος",
+    sortable: true,
+    width: "minmax(80px, 0.5fr)",
+    render: (row) => (
+      <span className="font-medium text-gray-900">{String(row.year)}</span>
+    ),
+  },
+  {
+    key: "files",
+    header: "Αρχεία",
+    width: "minmax(160px, 1fr)",
+    render: (row) => {
+      const excel = row.files.filter((f) => f.file_type === "EXCEL").length;
+      const pdf = row.files.filter((f) => f.file_type === "PDF").length;
+      return (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-medium text-gray-900">
+            {row.files.length} {row.files.length === 1 ? "αρχείο" : "αρχεία"}
+          </span>
+          {excel > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-green-700">
+              <FiFileText className="h-3.5 w-3.5" />
+              {excel} Excel
             </span>
-            {excel > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-green-700">
-                <FiFileText className="h-3.5 w-3.5" />
-                {excel} Excel
-              </span>
-            )}
-            {pdf > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-red-600">
-                <FiFile className="h-3.5 w-3.5" />
-                {pdf} PDF
-              </span>
-            )}
-          </div>
-        );
-      },
+          )}
+          {pdf > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-red-600">
+              <FiFile className="h-3.5 w-3.5" />
+              {pdf} PDF
+            </span>
+          )}
+        </div>
+      );
     },
-  ];
-}
+  },
+  {
+    key: "comments",
+    header: "Σχόλια",
+    width: "minmax(200px, 1.5fr)",
+    render: (row) =>
+      row.comments ? (
+        <span className="block truncate text-sm text-gray-600">
+          {row.comments}
+        </span>
+      ) : (
+        <span className="text-gray-400">—</span>
+      ),
+  },
+];
 
 // ─── Tab component ────────────────────────────────────────────────────────────
 
 export function SettlementsTab() {
-  const table = useTableQuery<SettlementRow>({
+  const table = useTableQuery<Settlement>({
     endpoint: "/settlements",
     defaultSortBy: "year",
     defaultSortDir: "desc",
   });
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<SettlementRow | null>(null);
-
-  const owner = useLookupModal<Producer>("/producers");
-  const field = useLookupModal<Field>("/fields");
-
-  const columns = buildColumns(
-    (row) => owner.openById(row.producer_id),
-    (row) => field.openById(row.field_id),
-  );
+  const [editing, setEditing] = useState<Settlement | null>(null);
 
   const isEmpty =
     !table.isLoading &&
@@ -138,7 +97,7 @@ export function SettlementsTab() {
     setEditing(null);
     setFormOpen(true);
   };
-  const openEdit = (row: SettlementRow) => {
+  const openEdit = (row: Settlement) => {
     setEditing(row);
     setFormOpen(true);
   };
@@ -156,7 +115,7 @@ export function SettlementsTab() {
         <EmptyState
           icon={FiFolder}
           title="Δεν υπάρχουν εκκαθαρίσεις"
-          description="Ανεβάστε αρχεία εκκαθάρισης (Excel ή PDF) ανά χωράφι και έτος."
+          description="Ανεβάστε τα αρχεία εκκαθάρισης (Excel ή PDF) που καλύπτουν όλα τα χωράφια, ανά έτος."
           action={
             <Button onPress={openCreate}>
               <FiPlus className="h-4 w-4" />
@@ -174,7 +133,7 @@ export function SettlementsTab() {
           error={table.error}
           search={table.search}
           onSearchChange={table.setSearch}
-          searchPlaceholder="Αναζήτηση χωραφιού, παραγωγού…"
+          searchPlaceholder="Αναζήτηση σχολίων…"
           filters={filterDefs}
           activeFilters={table.filters}
           onFilterChange={table.setFilter}
@@ -190,9 +149,6 @@ export function SettlementsTab() {
           onPageSizeChange={table.setPageSize}
         />
       )}
-
-      <ProducerDetailModal producer={owner.record} onClose={owner.close} />
-      <FieldDetailModal field={field.record} onClose={field.close} />
 
       <SettlementFormModal
         open={formOpen}

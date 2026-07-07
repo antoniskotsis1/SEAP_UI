@@ -8,6 +8,7 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
 import { FieldFormModal } from "@/components/entities/FieldFormModal";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
+import { VarietyPills } from "@/components/ui/VarietyPills";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { useLookupModal } from "@/hooks/useLookupModal";
 import { formatNumber, formatMonthYear } from "@/lib/utils";
@@ -117,8 +118,26 @@ function buildColumns(
     {
       key: "planting_summary",
       header: "Αρ. Δέντρων",
-      width: "minmax(110px, 0.9fr)",
-      render: (row) => row.planting_summary || "—",
+      width: "minmax(160px, 1.3fr)",
+      render: (row) => <VarietyPills varieties={row.planting_varieties} />,
+    },
+    {
+      key: "tree_count",
+      header: "Σύνολο Δέντρων",
+      width: "minmax(90px, 0.6fr)",
+      render: (row) => {
+        const total = (row.planting_varieties ?? []).reduce(
+          (sum, v) => sum + v.tree_count,
+          0,
+        );
+        return total > 0 ? (
+          <span className="font-medium tabular-nums">
+            {formatNumber(total)}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        );
+      },
     },
     {
       key: "planting_date",

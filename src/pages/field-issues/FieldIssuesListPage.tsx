@@ -1,9 +1,12 @@
-import { FiAlertTriangle, FiUsers } from "react-icons/fi";
+import { useState } from "react";
+import { FiAlertTriangle, FiPlus, FiUsers } from "react-icons/fi";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
 import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
+import { FieldIssueFormModal } from "@/components/entities/FieldIssueFormModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { useLookupModal } from "@/hooks/useLookupModal";
 import { formatDate } from "@/lib/utils";
@@ -26,6 +29,7 @@ type IssueRow = FieldIssue & {
   field_name?: string;
   owner_name?: string;
   producer_id?: string;
+  photo_url?: string;
 };
 
 // ─── Column definitions ─────────────────────────────────────────────────────
@@ -131,6 +135,10 @@ export function FieldIssuesListPage() {
   const owner = useLookupModal<Producer>("/producers");
   const field = useLookupModal<Field>("/fields");
 
+  // A `null` editing target means "create"; a row means "edit that issue".
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<IssueRow | null>(null);
+
   const columns = buildColumns(
     (row) => field.openById(row.field_id),
     (row) => owner.openById(row.producer_id),
@@ -142,24 +150,46 @@ export function FieldIssuesListPage() {
     !table.search &&
     Object.keys(table.filters).length === 0;
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+  const openEdit = (row: IssueRow) => {
+    setEditing(row);
+    setFormOpen(true);
+  };
+
   return (
     <>
       <PageHeader
         title="Προβλήματα Χωραφιών"
-        description="Προβλήματα που καταγράφηκαν μέσω φωτογραφιών χωραφιών"
+        description="Προβλήματα χωραφιών — από αναφορά ή από φωτογραφία"
+        actions={
+          <Button onPress={openCreate}>
+            <FiPlus className="h-4 w-4" />
+            Νέα Αναφορά
+          </Button>
+        }
       />
 
       {isEmpty ? (
         <EmptyState
           icon={FiAlertTriangle}
           title="Δεν υπάρχουν αναφορές"
-          description="Τα προβλήματα καταγράφονται κατά το ανέβασμα φωτογραφίας στη σελίδα «Φωτογραφίες»."
+          description="Καταχωρήστε ένα πρόβλημα ή ανεβάστε φωτογραφία με πρόβλημα στη σελίδα «Φωτογραφίες»."
+          action={
+            <Button onPress={openCreate}>
+              <FiPlus className="h-4 w-4" />
+              Νέα Αναφορά
+            </Button>
+          }
         />
       ) : (
         <DataTable
           columns={columns}
           data={table.data}
           keyExtractor={(row) => row.id}
+          onRowClick={openEdit}
           isLoading={table.isLoading}
           error={table.error}
           search={table.search}
@@ -186,6 +216,14 @@ export function FieldIssuesListPage() {
 
       {/* ── Field detail modal ───────────────────────────────────────────── */}
       <FieldDetailModal field={field.record} onClose={field.close} />
+
+      {/* ── Create / edit issue modal ────────────────────────────────────── */}
+      <FieldIssueFormModal
+        open={formOpen}
+        issue={editing}
+        onClose={() => setFormOpen(false)}
+        onSaved={table.refetch}
+      />
     </>
   );
 }

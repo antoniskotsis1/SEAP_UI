@@ -3,6 +3,7 @@ import { FiUsers } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { FormModal } from "@/components/ui/FormModal";
 import { SelectField } from "@/components/ui/SelectField";
+import { TextAreaField } from "@/components/ui/TextAreaField";
 import { api } from "@/lib/api";
 import { cn, formatNumber } from "@/lib/utils";
 import { varietyLabel, varietyBadge, VARIETY_ORDER } from "@/lib/labels";
@@ -49,6 +50,7 @@ export function PlantingFormModal({
   const isEdit = !!planting;
   const [fieldId, setFieldId] = useState("");
   const [counts, setCounts] = useState<CountMap>(emptyCounts);
+  const [comments, setComments] = useState("");
   const [fields, setFields] = useState<Field[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -65,6 +67,7 @@ export function PlantingFormModal({
     if (open) {
       setFieldId(planting?.field_id ?? "");
       setCounts(planting ? toCounts(planting.varieties) : emptyCounts);
+      setComments(planting?.comments ?? "");
     }
   }, [open, planting]);
 
@@ -87,7 +90,7 @@ export function PlantingFormModal({
     }
     setSaving(true);
     try {
-      const payload = { field_id: fieldId, varieties };
+      const payload = { field_id: fieldId, varieties, comments };
       if (isEdit) {
         await api.put(`/plantings/${planting.id}`, payload);
         toast.success("Η φύτευση ενημερώθηκε");
@@ -177,6 +180,13 @@ export function PlantingFormModal({
             </span>
           </div>
         </div>
+
+        <TextAreaField
+          label="Σχόλια"
+          value={comments}
+          onChange={setComments}
+          placeholder="Προαιρετικά σχόλια για τη φύτευση…"
+        />
       </div>
     </FormModal>
   );

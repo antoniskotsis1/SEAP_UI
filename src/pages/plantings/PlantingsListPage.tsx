@@ -10,7 +10,7 @@ import { PlantingFormModal } from "@/components/entities/PlantingFormModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
 import { useLookupModal } from "@/hooks/useLookupModal";
 import { formatNumber } from "@/lib/utils";
-import { varietyLabel, varietyBadge, VARIETY_ORDER } from "@/lib/labels";
+import { varietyLabel, VARIETY_ORDER } from "@/lib/labels";
 import type { Planting, FilterOption, Producer, Field } from "@/types";
 
 // ─── Extended row type ───────────────────────────────────────────────────────
@@ -57,36 +57,21 @@ function buildColumns(
         </div>
       ),
     },
-    {
-      key: "varieties",
-      header: "Ποικιλίες (δέντρα)",
-      width: "minmax(200px, 1.4fr)",
-      render: (row) =>
-        row.varieties.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {VARIETY_ORDER.filter((v) =>
-              row.varieties.some((x) => x.variety === v),
-            ).map((v) => {
-              const count = row.varieties.find(
-                (x) => x.variety === v,
-              )!.tree_count;
-              return (
-                <span
-                  key={v}
-                  className={`${varietyBadge[v]} inline-flex items-center gap-1`}
-                >
-                  {varietyLabel[v]}
-                  <span className="font-semibold tabular-nums">
-                    {formatNumber(count)}
-                  </span>
-                </span>
-              );
-            })}
-          </div>
+    ...VARIETY_ORDER.map<Column<PlantingRow>>((v) => ({
+      key: `variety_${v}`,
+      header: varietyLabel[v],
+      width: "minmax(80px, 0.5fr)",
+      render: (row) => {
+        const count = row.varieties.find((x) => x.variety === v)?.tree_count;
+        return count ? (
+          <span className="font-medium tabular-nums">
+            {formatNumber(count)}
+          </span>
         ) : (
           <span className="text-gray-400">—</span>
-        ),
-    },
+        );
+      },
+    })),
     {
       key: "tree_count",
       header: "Σύνολο",
@@ -97,6 +82,19 @@ function buildColumns(
           {formatNumber(row.tree_count)}
         </span>
       ),
+    },
+    {
+      key: "comments",
+      header: "Σχόλια",
+      width: "minmax(160px, 1.2fr)",
+      render: (row) =>
+        row.comments ? (
+          <span className="block truncate text-sm text-gray-600">
+            {row.comments}
+          </span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        ),
     },
   ];
 }

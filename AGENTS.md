@@ -22,11 +22,13 @@ or reuse a label map.
 Producer ──1:N── Field ──1:N── Planting            (variety composition: MALE / AC22 / AC76)
                    │
                    ├──1 per year── ProductionRecord (actual OR estimate, kg of AC22 + AC76)
-                   ├──1 per year── Settlement        (Εκκαθάριση — the official files)
                    ├──1:N────────── FieldPhoto        (6 categories) ──0:1── FieldIssue
+                   ├──1:N────────── FieldIssue        (from a photo OR standalone)
                    └──1:N────────── FieldAnalysis     (soil / leaf analysis files)
 
 Producer ──1:N── FinancialTransaction                (payment / debt / offset)
+
+Settlement (Εκκαθάριση)  ──1 per year, global        (partner files covering ALL fields)
 ```
 
 ## Golden rules (do not break these)
@@ -37,11 +39,15 @@ Producer ──1:N── FinancialTransaction                (payment / debt / o
 2. **A field has at most one `ProductionRecord` per `harvest_year`.** "Actual
    production" and "estimate" are the **same** record type, distinguished by the
    `is_estimate` boolean — not two separate rows for the same year/kind.
-3. **Εκκαθάριση (Settlement) is a separate entity from production**, one per
-   field per `year`, and it holds files (Excel/PDF). Do not fold settlement data
-   into `ProductionRecord`.
-4. **Every `FieldIssue` is attached to a `FieldPhoto`** (`photo_id`). Issues are
-   reported _from_ a photo, never free-standing.
+3. **Εκκαθάριση (Settlement) is a separate entity from production**, one **per
+   `year` globally** — _not_ per field. The external partner sends file(s) that
+   already cover every field for that year; a settlement just archives those
+   files (Excel/PDF) against the year, plus optional `comments`. It has no
+   `field_id`. Do not fold settlement data into `ProductionRecord`.
+4. **Every `FieldIssue` belongs to a `Field`** (`field_id`, required). It **may**
+   optionally originate from a `FieldPhoto` (`photo_id`, optional) when reported
+   from a photo, but issues can also be reported **standalone** from the issues
+   page. Do not assume `photo_id` is always set.
 5. **Photos belong to exactly one of the 6 categories** (see
    `docs/business-logic/photos-and-issues.md`). Do not invent categories.
 6. `quantity_kg` on a production record is always `ac22_kg + ac76_kg`. Keep it

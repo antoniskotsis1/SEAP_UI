@@ -26,21 +26,41 @@ export const producerStatusBadge: Record<ProducerStatus, string> = {
   ACTIVE: "badge-green",
   INACTIVE: "badge-gray",
 };
+/** Solid hex fills for producer status in charts (categorical; validated). */
+export const producerStatusChartColor: Record<ProducerStatus, string> = {
+  LEAD: "#2563eb",
+  ACTIVE: "#16a34a",
+  INACTIVE: "#64748b",
+};
+
+/** Single brand hue for magnitude charts (one series, one hue). */
+export const BRAND_CHART_COLOR = "#13a319";
+/** Neutral hue for the de-emphasized slot (e.g. an estimate vs. a realized value). */
+export const NEUTRAL_CHART_COLOR = "#64748b";
 
 // ─── Planting ────────────────────────────────────────────────────────────────
 
 export const varietyLabel: Record<Variety, string> = {
-  MALE: "Αρσενικό",
+  MALE: "Αρσενικά",
   AC22: "AC22",
   AC76: "AC76",
 };
 export const varietyBadge: Record<Variety, string> = {
   MALE: "badge-gray",
   AC22: "badge-blue",
-  AC76: "badge-blue",
+  AC76: "badge-teal",
 };
 /** Display order for the three varieties in filters, forms and badges. */
 export const VARIETY_ORDER: Variety[] = ["AC22", "AC76", "MALE"];
+/**
+ * Solid hex fills for varieties in charts (badges use tint classes instead).
+ * Validated as a categorical palette: AC22 blue, AC76 teal, MALE neutral slate.
+ */
+export const varietyChartColor: Record<Variety, string> = {
+  AC22: "#2563eb",
+  AC76: "#0d9488",
+  MALE: "#64748b",
+};
 
 // ─── Field ───────────────────────────────────────────────────────────────────
 
@@ -67,6 +87,12 @@ export const severityBadge: Record<IssueSeverity, string> = {
   LOW: "badge-gray",
   MEDIUM: "badge-yellow",
   HIGH: "badge-red",
+};
+/** Solid hex fills for severity in charts — a reserved status ramp (always labelled). */
+export const severityChartColor: Record<IssueSeverity, string> = {
+  LOW: "#94a3b8",
+  MEDIUM: "#d97706",
+  HIGH: "#dc2626",
 };
 export const issueStatusLabel: Record<IssueStatus, string> = {
   OPEN: "Ανοιχτό",

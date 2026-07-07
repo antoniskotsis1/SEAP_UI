@@ -24,7 +24,7 @@ type ProductionRow = ProductionRecord & {
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => String(CURRENT_YEAR - i));
 
-const filterDefs: FilterOption[] = [
+const yearFilterDefs: FilterOption[] = [
   {
     key: "harvest_year",
     label: "Έτος",
@@ -37,6 +37,8 @@ const filterDefs: FilterOption[] = [
 function buildColumns(
   onOwnerClick: (row: ProductionRow) => void,
   onFieldClick: (row: ProductionRow) => void,
+  /** Estimation only ever shows the current year, so the year column is dropped. */
+  includeYear: boolean,
 ): Column<ProductionRow>[] {
   return [
     {
@@ -68,15 +70,21 @@ function buildColumns(
         </div>
       ),
     },
-    {
-      key: "harvest_year",
-      header: "Έτος",
-      sortable: true,
-      width: "minmax(80px, 0.5fr)",
-      render: (row) => (
-        <span className="font-medium text-gray-900">{String(row.harvest_year)}</span>
-      ),
-    },
+    ...(includeYear
+      ? [
+          {
+            key: "harvest_year",
+            header: "Έτος",
+            sortable: true,
+            width: "minmax(80px, 0.5fr)",
+            render: (row: ProductionRow) => (
+              <span className="font-medium text-gray-900">
+                {String(row.harvest_year)}
+              </span>
+            ),
+          } satisfies Column<ProductionRow>,
+        ]
+      : []),
     {
       key: "ac22_kg",
       header: "AC22 (kg)",
@@ -117,9 +125,14 @@ interface ProductionRecordsTabProps {
 }
 
 export function ProductionRecordsTab({ isEstimate }: ProductionRecordsTabProps) {
+  // Estimates only concern the current harvest year — there is no history to
+  // browse, so we pin the year server-side and hide the year filter/column.
   const table = useTableQuery<ProductionRow>({
     endpoint: "/production",
-    staticParams: { is_estimate: String(isEstimate) },
+    staticParams: {
+      is_estimate: String(isEstimate),
+      ...(isEstimate ? { harvest_year: String(CURRENT_YEAR) } : {}),
+    },
     defaultSortBy: "harvest_year",
     defaultSortDir: "desc",
   });
@@ -133,6 +146,7 @@ export function ProductionRecordsTab({ isEstimate }: ProductionRecordsTabProps) 
   const columns = buildColumns(
     (row) => owner.openById(row.producer_id),
     (row) => field.openById(row.field_id),
+    !isEstimate,
   );
 
   const isEmpty =
@@ -167,7 +181,7 @@ export function ProductionRecordsTab({ isEstimate }: ProductionRecordsTabProps) 
           title={isEstimate ? "Δεν υπάρχουν εκτιμήσεις" : "Δεν υπάρχουν καταγραφές"}
           description={
             isEstimate
-              ? "Ξεκινήστε προσθέτοντας μια εκτίμηση παραγωγής."
+              ? `Ξεκινήστε προσθέτοντας μια εκτίμηση παραγωγής για το ${CURRENT_YEAR}.`
               : "Ξεκινήστε καταγράφοντας παραγωγή ανά χωράφι."
           }
           action={
@@ -188,7 +202,7 @@ export function ProductionRecordsTab({ isEstimate }: ProductionRecordsTabProps) 
           search={table.search}
           onSearchChange={table.setSearch}
           searchPlaceholder="Αναζήτηση χωραφιού, παραγωγού…"
-          filters={filterDefs}
+          filters={isEstimate ? [] : yearFilterDefs}
           activeFilters={table.filters}
           onFilterChange={table.setFilter}
           onClearFilters={table.clearFilters}

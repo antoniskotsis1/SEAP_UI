@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { FiCamera, FiPlus, FiAlertTriangle, FiUpload, FiX, FiUsers } from "react-icons/fi";
+import {
+  FiCamera,
+  FiPlus,
+  FiAlertTriangle,
+  FiUpload,
+  FiX,
+  FiUsers,
+} from "react-icons/fi";
 import toast from "react-hot-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -44,7 +51,9 @@ const columns: Column<Field>[] = [
           <FiUsers className="h-3 w-3 shrink-0" />
           {row.producer_name || "—"}
         </p>
-        <p className="truncate text-xs text-gray-400">{row.location_name || "—"}</p>
+        <p className="truncate text-xs text-gray-400">
+          {row.location_name || "—"}
+        </p>
       </div>
     ),
   },
@@ -98,16 +107,24 @@ export function FieldPhotosListPage() {
   const [photosKey, setPhotosKey] = useState(0);
 
   useEffect(() => {
-    if (!selectedField) { setFieldPhotos([]); return; }
+    if (!selectedField) {
+      setFieldPhotos([]);
+      return;
+    }
     setPhotosLoading(true);
     api
-      .list<FieldPhoto>("/field-photos", { field_id: selectedField.id, page_size: 200 })
+      .list<FieldPhoto>("/field-photos", {
+        field_id: selectedField.id,
+        page_size: 200,
+      })
       .then((r) => setFieldPhotos(r.data))
       .catch(() => setFieldPhotos([]))
       .finally(() => setPhotosLoading(false));
   }, [selectedField, photosKey]);
 
-  const photosByCategory = PHOTO_CATEGORY_ORDER.reduce<Record<PhotoCategory, FieldPhoto[]>>(
+  const photosByCategory = PHOTO_CATEGORY_ORDER.reduce<
+    Record<PhotoCategory, FieldPhoto[]>
+  >(
     (acc, cat) => {
       acc[cat] = fieldPhotos.filter((p) => p.category === cat);
       return acc;
@@ -295,7 +312,9 @@ export function FieldPhotosListPage() {
       <Modal
         open={!!selectedField}
         onClose={() => setSelectedField(null)}
-        title={selectedField ? `${selectedField.location_name} — Φωτογραφίες` : ""}
+        title={
+          selectedField ? `${selectedField.location_name} — Φωτογραφίες` : ""
+        }
         wide
         footer={
           <Button variant="secondary" onPress={() => setSelectedField(null)}>
@@ -318,8 +337,12 @@ export function FieldPhotosListPage() {
                 return (
                   <div key={cat}>
                     <div className="mb-3 flex items-center gap-2">
-                      <span className={photoCategoryBadge[cat]}>{photoCategoryLabel[cat]}</span>
-                      <span className="text-xs text-gray-400">({photos.length})</span>
+                      <span className={photoCategoryBadge[cat]}>
+                        {photoCategoryLabel[cat]}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        ({photos.length})
+                      </span>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       {photos.map((photo) => (
@@ -400,14 +423,18 @@ export function FieldPhotosListPage() {
               <span className={photoCategoryBadge[lightbox.category]}>
                 {photoCategoryLabel[lightbox.category]}
               </span>
-              {lightbox.taken_at && <span>{formatDate(lightbox.taken_at)}</span>}
+              {lightbox.taken_at && (
+                <span>{formatDate(lightbox.taken_at)}</span>
+              )}
             </div>
 
             {lightbox.issue && (
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                 <div className="mb-1 flex items-center gap-2">
                   <FiAlertTriangle className="h-4 w-4 text-red-500" />
-                  <span className="font-medium text-gray-900">{lightbox.issue.title}</span>
+                  <span className="font-medium text-gray-900">
+                    {lightbox.issue.title}
+                  </span>
                   <span className={severityBadge[lightbox.issue.severity]}>
                     {severityLabel[lightbox.issue.severity]}
                   </span>
@@ -415,7 +442,9 @@ export function FieldPhotosListPage() {
                     {issueStatusLabel[lightbox.issue.status]}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600">{lightbox.issue.description}</p>
+                <p className="text-sm text-gray-600">
+                  {lightbox.issue.description}
+                </p>
               </div>
             )}
 
@@ -430,7 +459,9 @@ export function FieldPhotosListPage() {
               <div className="mt-2 flex justify-end">
                 <Button
                   onPress={saveComment}
-                  isDisabled={savingComment || comment === (lightbox.notes ?? "")}
+                  isDisabled={
+                    savingComment || comment === (lightbox.notes ?? "")
+                  }
                 >
                   {savingComment ? "Αποθήκευση…" : "Αποθήκευση σχολίων"}
                 </Button>
@@ -495,7 +526,11 @@ export function FieldPhotosListPage() {
                 <span className="min-w-0 flex-1 truncate text-sm text-gray-600">
                   {fileName || form.url}
                 </span>
-                <Button variant="ghost" onPress={clearFile} className="text-gray-500">
+                <Button
+                  variant="ghost"
+                  onPress={clearFile}
+                  className="text-gray-500"
+                >
                   <FiX className="h-4 w-4" />
                 </Button>
               </div>
@@ -545,7 +580,7 @@ export function FieldPhotosListPage() {
             />
             <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
               <FiAlertTriangle className="h-4 w-4 text-yellow-500" />
-              Υπάρχει πρόβλημα σε αυτή τη φωτογραφία;
+              Υπάρχει πρόβλημα;
             </span>
           </label>
 

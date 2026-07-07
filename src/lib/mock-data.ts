@@ -26,6 +26,15 @@ import type {
   IssueSeverity,
   IssueStatus,
   PaginatedResponse,
+  DashboardStats,
+  ProductionYearPoint,
+  VarietyCompositionPoint,
+  SeverityCountPoint,
+  EstimateVsActualPoint,
+  YieldPerStremmaPoint,
+  StatusCountPoint,
+  RegionStremmataPoint,
+  CategoryCountPoint,
 } from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -80,6 +89,14 @@ const REGIONS = [
 
 const ROOTSTOCKS = ["HAYWARD", "BOUNTY", "D1", undefined];
 const SPACINGS = ["5x3", "4.5x3", "5x4", "4x3", undefined];
+const PLANTING_COMMENTS = [
+  "Νέα φύτευση, καλή ανάπτυξη.",
+  "Χρειάζεται αντικατάσταση μερικών δέντρων.",
+  "Εμβολιασμός την επόμενη σεζόν.",
+  "Καλή παραγωγικότητα φέτος.",
+  undefined,
+  undefined,
+];
 
 const GPS_COORDS = [
   "39°07'25.4\"N 20°55'11.1\"E", "39°03'16.2\"N 20°59'37.4\"E",
@@ -268,6 +285,7 @@ function generatePlantings(fields: Field[]): Planting[] {
       training_shape: pick(["FISHBONE", "UMBRELLA", "OTHER"]),
       rootstock: pick(ROOTSTOCKS),
       spacing: pick(SPACINGS),
+      comments: pick(PLANTING_COMMENTS),
       created_at: ts,
       updated_at: ts,
     });
@@ -344,10 +362,10 @@ function generateProduction(
 
 const SETTLEMENT_TYPES: SettlementFileType[] = ["EXCEL", "PDF"];
 
-function mkSettlementFile(fieldId: string, year: number, i: number): SettlementFile {
+function mkSettlementFile(year: number, i: number): SettlementFile {
   const type = pick(SETTLEMENT_TYPES);
   const ext = type === "PDF" ? "pdf" : "xlsx";
-  const name = `ekkatharisi-${year}-${fieldId}-${i + 1}.${ext}`;
+  const name = `ekkatharisi-${year}-${i + 1}.${ext}`;
   return {
     id: uid(),
     file_name: name,
@@ -358,28 +376,22 @@ function mkSettlementFile(fieldId: string, year: number, i: number): SettlementF
   };
 }
 
-function generateSettlements(fields: Field[]): Settlement[] {
-  const settlements: Settlement[] = [];
-  fields.forEach((f) => {
-    if (Math.random() > 0.4) return; // ~40% of fields have settlements
-    for (const year of [2023, 2024]) {
-      if (Math.random() > 0.7) continue;
-      const numFiles = randInt(1, 3);
-      const ts = isoDate(year, 12, randInt(1, 28));
-      settlements.push({
-        id: uid(),
-        field_id: f.id,
-        year,
-        files: Array.from({ length: numFiles }, (_, i) =>
-          mkSettlementFile(f.id, year, i),
-        ),
-        notes: undefined,
-        created_at: ts,
-        updated_at: ts,
-      });
-    }
+/** One settlement per year — each holds the partner's files covering all fields. */
+function generateSettlements(): Settlement[] {
+  return [2023, 2024].map((year) => {
+    const numFiles = randInt(1, 3);
+    const ts = isoDate(year, 12, randInt(1, 28));
+    return {
+      id: uid(),
+      year,
+      files: Array.from({ length: numFiles }, (_, i) =>
+        mkSettlementFile(year, i),
+      ),
+      comments: undefined,
+      created_at: ts,
+      updated_at: ts,
+    };
   });
-  return settlements;
 }
 
 function generateFinancials(producers: Producer[]): FinancialTransaction[] {
@@ -481,7 +493,7 @@ const producers = generateProducers();
 const fields = generateFields(producers);
 const plantings = generatePlantings(fields);
 const production = generateProduction(fields, plantings);
-const settlements = generateSettlements(fields);
+const settlements = generateSettlements();
 const financials = generateFinancials(producers);
 const photos = generatePhotos(fields);
 const issues = generateIssues(photos);
@@ -512,9 +524,6 @@ export type ProductionWithContext = ProductionRecord & {
   owner_name: string;
 };
 export type SettlementWithContext = Settlement & {
-  producer_id: string;
-  field_name: string;
-  owner_name: string;
   file_count: number;
 };
 export type FinancialWithOwner = FinancialTransaction & { owner_name: string };
@@ -541,16 +550,25 @@ function enrichFields(): Field[] {
   );
   return fields.map((f) => {
     const fp = plantingsByFieldId.get(f.id) ?? [];
-    const parts: string[] = [];
+    // Aggregate tree counts per variety across all of the field's plantings.
+    const byVariety = new Map<Variety, number>();
     fp.forEach((p) => {
       p.varieties.forEach((v) => {
-        const label = v.variety === "MALE" ? "♂" : v.variety;
-        parts.push(`${v.tree_count} ${label}`);
+        byVariety.set(v.variety, (byVariety.get(v.variety) ?? 0) + v.tree_count);
       });
     });
+    const order: Variety[] = ["AC22", "AC76", "MALE"];
+    const planting_varieties: VarietyCount[] = order
+      .filter((v) => byVariety.has(v))
+      .map((v) => ({ variety: v, tree_count: byVariety.get(v)! }));
+    const parts = planting_varieties.map(
+      (v) => `${v.tree_count} ${v.variety === "MALE" ? "♂" : v.variety}`,
+    );
     return {
       ...f,
       planting_summary: parts.length > 0 ? parts.join(" + ") : undefined,
+      planting_varieties:
+        planting_varieties.length > 0 ? planting_varieties : undefined,
       photo_count: photoCountByField.get(f.id) ?? 0,
     };
   });
@@ -586,18 +604,10 @@ function enrichProduction(): ProductionWithContext[] {
 }
 
 function enrichSettlements(): SettlementWithContext[] {
-  return settlements.map((s) => {
-    const field = fieldMap.get(s.field_id);
-    return {
-      ...s,
-      producer_id: field?.producer_id ?? "",
-      field_name: field?.location_name ?? "—",
-      owner_name: field
-        ? producerMap.get(field.producer_id)?.display_name ?? "—"
-        : "—",
-      file_count: s.files.length,
-    };
-  });
+  return settlements.map((s) => ({
+    ...s,
+    file_count: s.files.length,
+  }));
 }
 
 function enrichFinancials(): FinancialWithOwner[] {
@@ -706,11 +716,11 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
   "/api/fields": (p) =>
     queryEngine(enrichFields(), p, ["location_name", "producer_name"]),
   "/api/plantings": (p) =>
-    queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety_keys", "rootstock"]),
+    queryEngine(enrichPlantings(), p, ["field_name", "owner_name", "variety_keys", "rootstock", "comments"]),
   "/api/production": (p) =>
     queryEngine(enrichProduction(), p, ["field_name", "owner_name"]),
   "/api/settlements": (p) =>
-    queryEngine(enrichSettlements(), p, ["field_name", "owner_name", "notes"]),
+    queryEngine(enrichSettlements(), p, ["comments"]),
   "/api/financials": (p) =>
     queryEngine(enrichFinancials(), p, ["owner_name", "vat_note", "notes"]),
   "/api/field-photos": (p) =>
@@ -721,18 +731,141 @@ const handlers: Record<string, (params: URLSearchParams) => PaginatedResponse<un
 
 // ─── Dashboard stats ─────────────────────────────────────────────────────────
 
-export function getDashboardStats() {
+function getDashboardStats(): DashboardStats {
   const activeProducers = producers.filter((e) => e.status === "ACTIVE").length;
   const totalFields = fields.length;
+  const totalStremmata = +fields
+    .reduce((sum, f) => sum + (f.stremmata ?? 0), 0)
+    .toFixed(1);
   const totalProduction = production
     .filter((r) => r.harvest_year === 2024 && !r.is_estimate)
     .reduce((sum, r) => sum + r.quantity_kg, 0);
-  const totalPayments = financials
-    .filter((t) => t.type === "PAYMENT" && t.year === 2024)
-    .reduce((sum, t) => sum + t.amount, 0);
   const openIssues = issues.filter((i) => i.status === "OPEN").length;
 
-  return { activeProducers, totalFields, totalProduction, totalPayments, openIssues };
+  // Actual production per harvest year, split by fruit variety (oldest → newest).
+  const byYear = new Map<number, ProductionYearPoint>();
+  production
+    .filter((r) => !r.is_estimate)
+    .forEach((r) => {
+      const point = byYear.get(r.harvest_year) ?? {
+        year: r.harvest_year,
+        ac22_kg: 0,
+        ac76_kg: 0,
+      };
+      point.ac22_kg += r.ac22_kg;
+      point.ac76_kg += r.ac76_kg;
+      byYear.set(r.harvest_year, point);
+    });
+  const productionByYear = [...byYear.values()].sort((a, b) => a.year - b.year);
+
+  // Tree population across every planting, split by variety.
+  const treesByVariety = new Map<Variety, number>();
+  plantings.forEach((p) =>
+    p.varieties.forEach((v) =>
+      treesByVariety.set(
+        v.variety,
+        (treesByVariety.get(v.variety) ?? 0) + v.tree_count,
+      ),
+    ),
+  );
+  const varietyComposition: VarietyCompositionPoint[] = (
+    ["AC22", "AC76", "MALE"] as Variety[]
+  )
+    .map((variety) => ({ variety, tree_count: treesByVariety.get(variety) ?? 0 }))
+    .filter((v) => v.tree_count > 0);
+
+  // Open issues grouped by severity (every level present so bars stay stable).
+  const openBySeverity = new Map<IssueSeverity, number>();
+  issues
+    .filter((i) => i.status === "OPEN")
+    .forEach((i) =>
+      openBySeverity.set(i.severity, (openBySeverity.get(i.severity) ?? 0) + 1),
+    );
+  const openIssuesBySeverity: SeverityCountPoint[] = (
+    ["LOW", "MEDIUM", "HIGH"] as IssueSeverity[]
+  ).map((severity) => ({ severity, count: openBySeverity.get(severity) ?? 0 }));
+
+  // Estimate vs. actual for the most recent year that has any record.
+  const latestYear = production.reduce(
+    (max, r) => Math.max(max, r.harvest_year),
+    0,
+  );
+  const estimateVsActual: EstimateVsActualPoint | null = latestYear
+    ? {
+        year: latestYear,
+        estimate_kg: production
+          .filter((r) => r.harvest_year === latestYear && r.is_estimate)
+          .reduce((sum, r) => sum + r.quantity_kg, 0),
+        actual_kg: production
+          .filter((r) => r.harvest_year === latestYear && !r.is_estimate)
+          .reduce((sum, r) => sum + r.quantity_kg, 0),
+      }
+    : null;
+
+  // Actual kg per stremma per year (uses current total area as the denominator).
+  const yieldPerStremmaByYear: YieldPerStremmaPoint[] = productionByYear.map(
+    (p) => ({
+      year: p.year,
+      kg_per_stremma: totalStremmata
+        ? +((p.ac22_kg + p.ac76_kg) / totalStremmata).toFixed(1)
+        : 0,
+    }),
+  );
+
+  // Producers grouped by status.
+  const statusCount = new Map<ProducerStatus, number>();
+  producers.forEach((pr) =>
+    statusCount.set(pr.status, (statusCount.get(pr.status) ?? 0) + 1),
+  );
+  const producersByStatus: StatusCountPoint[] = (
+    ["LEAD", "ACTIVE", "INACTIVE"] as ProducerStatus[]
+  )
+    .map((status) => ({ status, count: statusCount.get(status) ?? 0 }))
+    .filter((s) => s.count > 0);
+
+  // Total stremmata per region, largest first.
+  const regionArea = new Map<string, number>();
+  fields.forEach((f) => {
+    const region = f.region?.trim() || "Άγνωστη";
+    regionArea.set(region, (regionArea.get(region) ?? 0) + (f.stremmata ?? 0));
+  });
+  const stremmataByRegion: RegionStremmataPoint[] = [...regionArea.entries()]
+    .map(([region, stremmata]) => ({ region, stremmata: +stremmata.toFixed(1) }))
+    .sort((a, b) => b.stremmata - a.stremmata);
+
+  // Field photos grouped by category.
+  const categoryCount = new Map<PhotoCategory, number>();
+  photos.forEach((ph) =>
+    categoryCount.set(ph.category, (categoryCount.get(ph.category) ?? 0) + 1),
+  );
+  const photosByCategory: CategoryCountPoint[] = (
+    [
+      "KLADEMA",
+      "ARAIWMA_BLASTOU",
+      "ARAIWMA_KARPOU",
+      "KALOKAIRI_NERA",
+      "PERIODOS_SUGKOMIDIS",
+      "OTHER",
+    ] as PhotoCategory[]
+  )
+    .map((category) => ({ category, count: categoryCount.get(category) ?? 0 }))
+    .filter((c) => c.count > 0);
+
+  return {
+    activeProducers,
+    totalFields,
+    totalStremmata,
+    totalProduction,
+    openIssues,
+    productionByYear,
+    varietyComposition,
+    openIssuesBySeverity,
+    estimateVsActual,
+    yieldPerStremmaByYear,
+    producersByStatus,
+    stremmataByRegion,
+    photosByCategory,
+  };
 }
 
 // ─── Mutations (create / update) ─────────────────────────────────────────────
@@ -899,6 +1032,7 @@ type PlantingInput = Partial<
     | "training_shape"
     | "rootstock"
     | "spacing"
+    | "comments"
   >
 >;
 
@@ -922,6 +1056,7 @@ function createPlanting(body: PlantingInput): Planting {
     training_shape: body.training_shape,
     rootstock: blankToUndef(body.rootstock),
     spacing: blankToUndef(body.spacing),
+    comments: blankToUndef(body.comments),
     created_at: now,
     updated_at: now,
   };
@@ -947,6 +1082,7 @@ function updatePlanting(id: string, body: PlantingInput): Planting | null {
   if (body.training_shape !== undefined) existing.training_shape = body.training_shape;
   existing.rootstock = blankToUndef(body.rootstock);
   existing.spacing = blankToUndef(body.spacing);
+  existing.comments = blankToUndef(body.comments);
   existing.updated_at = new Date().toISOString();
   return existing;
 }
@@ -995,7 +1131,7 @@ function updateProduction(id: string, body: ProductionInput): ProductionRecord |
 
 /** Fields a client is allowed to set on a settlement. */
 type SettlementInput = Partial<
-  Pick<Settlement, "field_id" | "year" | "files" | "notes">
+  Pick<Settlement, "year" | "files" | "comments">
 >;
 
 /** Give newly-uploaded settlement files the server-side fields the client can't set. */
@@ -1022,10 +1158,9 @@ function createSettlement(body: SettlementInput): Settlement {
   const now = new Date().toISOString();
   const settlement: Settlement = {
     id: uid(),
-    field_id: body.field_id ?? "",
     year: Number(body.year) || new Date().getFullYear(),
     files: normalizeSettlementFiles(body.files),
-    notes: blankToUndef(body.notes),
+    comments: blankToUndef(body.comments),
     created_at: now,
     updated_at: now,
   };
@@ -1036,10 +1171,9 @@ function createSettlement(body: SettlementInput): Settlement {
 function updateSettlement(id: string, body: SettlementInput): Settlement | null {
   const existing = settlements.find((s) => s.id === id);
   if (!existing) return null;
-  if (body.field_id) existing.field_id = body.field_id;
   if (body.year !== undefined) existing.year = Number(body.year);
   if (body.files) existing.files = normalizeSettlementFiles(body.files);
-  existing.notes = blankToUndef(body.notes);
+  existing.comments = blankToUndef(body.comments);
   existing.updated_at = new Date().toISOString();
   return existing;
 }
@@ -1099,6 +1233,59 @@ function upsertPhotoIssue(photo: FieldPhoto, src: IssueInput): FieldIssue {
 function removePhotoIssue(photoId: string) {
   const idx = issues.findIndex((i) => i.photo_id === photoId);
   if (idx >= 0) issues.splice(idx, 1);
+}
+
+// ─── Standalone field-issue mutations ────────────────────────────────────────
+
+/**
+ * Fields a client may set when reporting an issue directly from the issues page.
+ * `field_id` is required; a photo is **optional** — `photo_id` links to one when
+ * provided, is omitted to leave it unchanged, or sent as `null` to unlink.
+ */
+type StandaloneIssueInput = Partial<
+  Pick<
+    FieldIssue,
+    "field_id" | "title" | "description" | "severity" | "status" | "reported_at"
+  >
+> & { photo_id?: string | null };
+
+function createIssue(body: StandaloneIssueInput): FieldIssue {
+  const now = new Date().toISOString();
+  const status = (body.status as IssueStatus) ?? "OPEN";
+  const issue: FieldIssue = {
+    id: uid(),
+    field_id: body.field_id ?? "",
+    photo_id: body.photo_id ?? undefined,
+    title: body.title?.trim() ?? "",
+    description: body.description?.trim() ?? "",
+    severity: (body.severity as IssueSeverity) ?? "MEDIUM",
+    status,
+    reported_at: body.reported_at || today(),
+    resolved_at: status === "RESOLVED" ? today() : undefined,
+    created_at: now,
+    updated_at: now,
+  };
+  issues.push(issue);
+  return issue;
+}
+
+function updateIssue(id: string, body: StandaloneIssueInput): FieldIssue | null {
+  const existing = issues.find((i) => i.id === id);
+  if (!existing) return null;
+  if (body.field_id) existing.field_id = body.field_id;
+  if (body.title !== undefined) existing.title = body.title.trim();
+  if (body.description !== undefined) existing.description = body.description.trim();
+  if (body.severity) existing.severity = body.severity as IssueSeverity;
+  if (body.status) {
+    existing.status = body.status as IssueStatus;
+    existing.resolved_at =
+      body.status === "RESOLVED" ? existing.resolved_at ?? today() : undefined;
+  }
+  if (body.reported_at) existing.reported_at = body.reported_at;
+  // `null` unlinks the photo, a string relinks it, `undefined` leaves it as-is.
+  if (body.photo_id !== undefined) existing.photo_id = body.photo_id ?? undefined;
+  existing.updated_at = new Date().toISOString();
+  return existing;
 }
 
 function createPhoto(body: PhotoInput): FieldPhoto {
@@ -1228,10 +1415,25 @@ export function setupMockApi() {
           : jsonResponse({ message: "Not found" }, 404);
       }
 
+      if (path === "/api/field-issues" && method === "POST") {
+        return jsonResponse(createIssue(body as StandaloneIssueInput), 201);
+      }
+      const issueEdit = path?.match(/^\/api\/field-issues\/([^/]+)$/);
+      if (issueEdit && (method === "PATCH" || method === "PUT")) {
+        const updated = updateIssue(issueEdit[1]!, body as StandaloneIssueInput);
+        return updated
+          ? jsonResponse(updated)
+          : jsonResponse({ message: "Not found" }, 404);
+      }
+
       return jsonResponse({ message: "Method not allowed" }, 405);
     }
 
     // ── Reads ─────────────────────────────────────────────────────────────
+    if (path === "/api/dashboard") {
+      return jsonResponse(getDashboardStats());
+    }
+
     const handler = handlers[path!];
     if (!handler) {
       return jsonResponse({ message: "Not found" }, 404);

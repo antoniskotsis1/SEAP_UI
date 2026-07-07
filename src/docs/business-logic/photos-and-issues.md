@@ -36,10 +36,16 @@ a deliberate domain change (update `PhotoCategory` in `models.ts` and
 
 A `FieldIssue` records a problem observed on a field.
 
-- **Always attached to a photo** (`photo_id`). Issues are reported _from_ a photo;
-  there is no such thing as a field issue without an originating photo. Enforce
-  this when building any "report issue" flow — start from a photo.
-- Belongs to the same field (`field_id`) as its photo.
+- **Always belongs to a field** (`field_id`, required).
+- **A photo is optional** (`photo_id`, optional). There are two entry points:
+  1. **From the photos page** — reported while uploading/editing a photo that
+     documents a problem; `photo_id` points back to that photo.
+  2. **From the issues page** (`FieldIssueFormModal`, `POST /field-issues`) —
+     where attaching a photo is *optional*. If one is attached, a `FieldPhoto` is
+     created and linked (`photo_id`); if not, the issue stands alone with
+     `photo_id` undefined. On edit, `photo_id` is sent as a string to (re)link, or
+     `null` to unlink.
+  Do **not** assume `photo_id` is always present.
 - Has a `title`, `description`, a `severity` (`LOW` / `MEDIUM` / `HIGH`), and a
   `status` (`OPEN` / `RESOLVED`).
 - `reported_at` is set when raised; `resolved_at` when closed.
