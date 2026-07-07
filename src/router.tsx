@@ -1,5 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
+import { LoginPage } from "@/pages/LoginPage";
+import { RequireAuth } from "@/components/RequireAuth";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ProducersListPage } from "@/pages/producers/ProducersListPage";
 import { FieldsListPage } from "@/pages/fields/FieldsListPage";
@@ -11,7 +13,15 @@ import { FieldIssuesListPage } from "@/pages/field-issues/FieldIssuesListPage";
 
 export const router = createBrowserRouter([
   {
-    element: <AppLayout />,
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "producers", element: <ProducersListPage /> },

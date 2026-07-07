@@ -11,8 +11,10 @@ import {
   FiHome,
   FiChevronDown,
   FiChevronRight,
+  FiLogOut,
 } from "react-icons/fi";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 const SHOW_FINANCIALS = import.meta.env.VITE_SHOW_FINANCIALS === "true";
 
@@ -44,6 +46,7 @@ interface SidebarProps {
 
 export function Sidebar({ onNavigate }: SidebarProps) {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const isOnProducers = location.pathname.startsWith("/producers");
   const [producersOpen, setProducersOpen] = useState(isOnProducers);
 
@@ -149,6 +152,29 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
+
+      {user && (
+        <div className="border-t border-gray-200 p-3">
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-gray-900">
+                {user.name}
+              </p>
+              <p className="truncate text-xs text-gray-500">{user.email}</p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <FiLogOut className="h-5 w-5 shrink-0" />
+            Αποσύνδεση
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
