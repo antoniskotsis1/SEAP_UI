@@ -1,5 +1,10 @@
 # SEAP UI — Architecture & Implementation Reference
 
+> This file describes **how the code is structured** (stack, layout, components).
+> For **what the app is for and how the domain behaves**, see `AGENTS.md` and
+> `src/docs/business-logic/`. When docs and code disagree, `src/types/models.ts`
+> is the canonical schema.
+
 ## Stack
 
 | Layer          | Technology                                    |
@@ -8,9 +13,17 @@
 | Language       | TypeScript 5.7                                |
 | Routing        | React Router v7                               |
 | Styling        | Tailwind CSS v3 with custom component classes |
+| Form fields    | react-aria-components (TextField/TextArea)    |
+| Icons          | react-icons (Feather / `Fi*`)                 |
+| Dates          | date-fns                                      |
 | Notifications  | react-hot-toast                               |
 | Virtualization | react-window (opt-in per table)               |
 | HTTP           | Custom `ApiClient` wrapper around `fetch`     |
+| Demo data      | In-browser mock API (`src/lib/mock-data.ts`)  |
+
+> **Data source**: `main.tsx` calls `setupMockApi()`, which patches `fetch` so
+> the app runs entirely against in-browser mock data for the demo. There is no
+> real backend yet; remove that call to talk to a live `/api`.
 
 ---
 
@@ -20,36 +33,54 @@
 src/
 ├── components/
 │   ├── entities/
-│   │   ├── ProducerDetailModal.tsx  # Producer detail dialog (badges + info + fields list); self-fetches fields
-│   │   └── FieldDetailModal.tsx     # Field detail dialog (<dl> of DetailRow rows)
+│   │   ├── ProducerDetailModal.tsx   # Read-only producer dialog; self-fetches the producer's fields
+│   │   ├── FieldDetailModal.tsx      # Read-only field dialog (<dl> of DetailRow rows)
+│   │   ├── ProducerFormModal.tsx     # Create/edit producer
+│   │   ├── FieldFormModal.tsx        # Create/edit field
+│   │   ├── PlantingFormModal.tsx     # Create/edit planting (per-variety tree counts)
+│   │   ├── ProductionFormModal.tsx   # Create/edit production record OR estimate
+│   │   └── SettlementFormModal.tsx   # Create/edit settlement (Εκκαθάριση) + files
 │   ├── tables/
-│   │   └── DataTable.tsx          # Universal table component
+│   │   └── DataTable.tsx             # Universal table component
 │   └── ui/
-│       ├── DescriptionList.tsx    # InfoField + DetailRow presentational primitives
-│       ├── EmptyState.tsx         # Empty / zero-data placeholder
-│       ├── FormModal.tsx          # Modal + standard Cancel/Submit footer (create/edit dialogs)
-│       ├── Modal.tsx              # Reusable dialog (escape + overlay click to close)
-│       ├── PageHeader.tsx         # Title + description + right-side action slot
-│       └── StatCard.tsx           # Dashboard stat card
+│       ├── Button.tsx               # Variant button (primary/secondary/danger/ghost)
+│       ├── DescriptionList.tsx      # InfoField + DetailRow presentational primitives
+│       ├── EmptyState.tsx           # Empty / zero-data placeholder
+│       ├── FormModal.tsx            # Modal + standard Cancel/Submit footer (create/edit dialogs)
+│       ├── Modal.tsx               # Reusable dialog (escape + overlay click to close)
+│       ├── PageHeader.tsx          # Title + description + right-side action slot
+│       ├── SelectField.tsx         # Labelled <select>
+│       ├── StatCard.tsx            # Dashboard stat card
+│       ├── TextAreaField.tsx       # Labelled textarea (react-aria)
+│       └── TextField.tsx           # Labelled text input (react-aria)
+├── docs/
+│   └── business-logic/
+│       ├── domain-model.md          # Entities, relationships, financials, analyses
+│       ├── production-and-settlements.md
+│       └── photos-and-issues.md
 ├── hooks/
-│   ├── useLookupModal.ts          # Fetch a single record by id → open its detail modal
-│   └── useTableQuery.ts           # Pagination, search, sort, filter state + fetch
+│   ├── useLookupModal.ts            # Fetch a single record by id → open its detail modal
+│   └── useTableQuery.ts             # Pagination, search, sort, filter state + fetch
 ├── layouts/
-│   ├── AppLayout.tsx              # Shell with sidebar + main content area
-│   └── Sidebar.tsx                # Navigation sidebar
+│   ├── AppLayout.tsx               # Shell with sidebar + main content area
+│   └── Sidebar.tsx                 # Navigation sidebar (collapsible Producers section)
 ├── lib/
-│   ├── api.ts                     # ApiClient (GET, POST, PUT, PATCH, DELETE, list)
-│   ├── labels.ts                  # Enum → display-label and enum → badge-class maps
-│   └── utils.ts                   # cn(), formatDate(), formatNumber(), formatCurrency()
+│   ├── api.ts                      # ApiClient (GET, POST, PUT, PATCH, DELETE, list)
+│   ├── labels.ts                   # Enum → Greek-label and enum → badge-class maps + orderings
+│   ├── mock-data.ts                # In-browser mock API (fetch shim) for the demo
+│   └── utils.ts                    # cn(), formatDate(), formatMonthYear(), formatNumber(), formatCurrency()
 ├── pages/
 │   ├── DashboardPage.tsx
-│   ├── PLACEHOLDER│   │   └── ProducersListPage.tsx
+│   ├── producers/
+│   │   └── ProducersListPage.tsx
 │   ├── fields/
 │   │   └── FieldsListPage.tsx
 │   ├── plantings/
 │   │   └── PlantingsListPage.tsx
 │   ├── production/
-│   │   └── ProductionListPage.tsx
+│   │   ├── ProductionListPage.tsx   # Tab shell (Παραγωγή / Εκτίμηση / Εκκαθάριση)
+│   │   ├── ProductionRecordsTab.tsx # Production + estimate tables (is_estimate flag)
+│   │   └── SettlementsTab.tsx        # Settlements table
 │   ├── financials/
 │   │   └── FinancialsListPage.tsx
 │   ├── field-photos/
@@ -57,8 +88,8 @@ src/
 │   └── field-issues/
 │       └── FieldIssuesListPage.tsx
 ├── types/
-│   ├── index.ts                   # Re-exports everything from models.ts
-│   └── models.ts                  # All entity interfaces + API helper types
+│   ├── index.ts                    # Re-exports everything from models.ts
+│   └── models.ts                   # All entity interfaces + API helper types
 ├── App.tsx
 ├── main.tsx
 └── router.tsx
@@ -68,101 +99,119 @@ src/
 
 ## Data model (`src/types/models.ts`)
 
+> Canonical schema. Every entity except the enum/helper types carries
+> `created_at` / `updated_at` timestamps unless noted otherwise.
+
 ### Enums
 
-| Type              | Values                                |
-| ----------------- | ------------------------------------- |
-| `ProducerStatus`  | `LEAD` \| `ACTIVE` \| `INACTIVE`      |
-| `Variety`         | `V22` \| `V76`                        |
-| `Sex`             | `FEMALE` \| `MALE`                    |
-| `PlantingMethod`  | `PLANTING` \| `GRAFTING`              |
-| `TrainingShape`   | `FISHBONE` \| `UMBRELLA` \| `OTHER`   |
-| `TransactionType` | `PAYMENT` \| `DEBT` \| `OFFSET`       |
-| `InvoiceStatus`   | `ISSUED` \| `NOT_ISSUED` \| `PARTIAL` |
-| `IssueSeverity`   | `LOW` \| `MEDIUM` \| `HIGH`           |
-| `IssueStatus`     | `OPEN` \| `RESOLVED`                  |
+| Type              | Values                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `ProducerStatus`  | `LEAD` \| `ACTIVE` \| `INACTIVE`                                                          |
+| `Variety`         | `MALE` \| `AC22` \| `AC76` (only `AC22`/`AC76` bear fruit; `MALE` is a pollinator)        |
+| `PlantingMethod`  | `PLANTING` \| `GRAFTING` \| `MIX`                                                         |
+| `TrainingShape`   | `FISHBONE` \| `UMBRELLA` \| `OTHER` \| `MIX`                                              |
+| `TransactionType` | `PAYMENT` \| `DEBT` \| `OFFSET`                                                           |
+| `InvoiceStatus`   | `ISSUED` \| `NOT_ISSUED` \| `PARTIAL`                                                     |
+| `IssueSeverity`   | `LOW` \| `MEDIUM` \| `HIGH`                                                               |
+| `IssueStatus`     | `OPEN` \| `RESOLVED`                                                                      |
+| `PhotoCategory`   | `KLADEMA` \| `ARAIWMA_BLASTOU` \| `ARAIWMA_KARPOU` \| `KALOKAIRI_NERA` \| `PERIODOS_SUGKOMIDIS` \| `OTHER` |
+| `SettlementFileType` | `EXCEL` \| `PDF`                                                                       |
 
 ### Entity interfaces
 
-#### `Producer`
+#### `Producer` / `ProducerListItem`
 
-Core entity for producers.
-
-| Field                 | Type             | Notes        |
-| --------------------- | ---------------- | ------------ |
-| `id`                  | string           |              |
-| `display_name`        | string           | Required     |
-| `status`              | `ProducerStatus` |              |
-| `afm`                 | string?          | Greek tax ID |
-| `phone`               | string?          |              |
-| `email`               | string?          |              |
-| `representative_name` | string?          |              |
-| `region`              | string?          |              |
-| `notes`               | string?          |              |
+| Field                 | Type             | Notes                              |
+| --------------------- | ---------------- | ---------------------------------- |
+| `id`                  | string           |                                    |
+| `display_name`        | string           | Required                           |
+| `status`              | `ProducerStatus` |                                    |
+| `afm`                 | string?          | Greek tax ID                       |
+| `phone`               | string?          |                                    |
+| `email`               | string?          |                                    |
+| `representative_name` | string?          |                                    |
+| `region`              | string?          |                                    |
+| `notes`               | string?          |                                    |
+| `total_stremmata`     | number?          | **`ProducerListItem` only** — sum across the producer's fields |
 
 #### `Field`
 
-Agricultural plot belonging to a producer. Planting metadata is stored at field level (mirrors the source Excel structure).
+Agricultural plot belonging to a producer.
 
-| Field             | Type              | Notes                                          |
-| ----------------- | ----------------- | ---------------------------------------------- |
-| `id`              | string            |                                                |
-| `producer_id`     | string            | FK → Producer                                  |
-| `location_name`   | string            | Required                                       |
-| `stremmata`       | number?           | Total area in stremmata                        |
-| `gps_coordinates` | string?           |                                                |
-| `planting_year`   | number?           | Year of planting                               |
-| `planting_method` | `PlantingMethod`? |                                                |
-| `training_shape`  | `TrainingShape`?  |                                                |
-| `rootstock`       | string?           | e.g. HAYWARD, BOUNTY, D1                       |
-| `spacing`         | string?           | e.g. "5Χ3"                                     |
-| `length_m`        | number?           | Row length — used for derived area calculation |
-| `width_m`         | number?           | Row width — used for derived area calculation  |
-| `analysis_number` | string?           | Quick-ref; full records in FieldAnalysis       |
+| Field              | Type                 | Notes                                                |
+| ------------------ | -------------------- | ---------------------------------------------------- |
+| `id`               | string               |                                                      |
+| `producer_id`      | string               | FK → Producer                                        |
+| `producer_name`    | string               | Denormalized for display                             |
+| `location_name`    | string               | Required                                             |
+| `region`           | string?              |                                                      |
+| `stremmata`        | number?              | Total area in stremmata                              |
+| `gps_coordinates`  | string?              |                                                      |
+| `comments`         | string?              |                                                      |
+| `planting_date`    | string?              | ISO date                                             |
+| `planting_method`  | `PlantingMethod`?    |                                                      |
+| `training_shape`   | `TrainingShape`?     |                                                      |
+| `rootstock`        | string?              | e.g. HAYWARD, BOUNTY, D1                             |
+| `spacing`          | string?              | e.g. "5Χ3"                                           |
+| `total_plants`     | number?              |                                                      |
+| `analyses`         | `FieldAnalysisFile[]`? | Uploaded soil/leaf analysis spreadsheets           |
+| `planting_summary` | string?              | Derived display summary (trees × variety)            |
+| `photo_count`      | number?              | Derived count of attached photos                     |
+| `created_at`       | string               |                                                      |
+| `updated_at`       | string               |                                                      |
 
-> **Derived area**: `used_area_m2 = tree_count × (length_m × width_m)`
+#### `FieldAnalysisFile`
+
+Uploaded soil/leaf analysis spreadsheet attached to a field (`Field.analyses`).
+
+| Field | `id` | `file_name` | `file_url` | `size_bytes?` | `uploaded_at` |
+| ----- | ---- | ----------- | ---------- | ------------- | ------------- |
 
 #### `Planting`
 
-Tree count bucket per field per sex/variety combination. Variety only applies to FEMALE trees; MALE trees are pollinators.
+Per-variety tree counts within a field. A planting may hold any of the three varieties.
 
-| Field        | Type       | Notes                                           |
-| ------------ | ---------- | ----------------------------------------------- |
-| `id`         | string     |                                                 |
-| `field_id`   | string     | FK → Field                                      |
-| `sex`        | `Sex`      |                                                 |
-| `variety`    | `Variety`? | Required when `sex === "FEMALE"`, omit for MALE |
-| `tree_count` | number     |                                                 |
-
-#### `FieldAnalysis`
-
-Lab analysis records attachable to a field (Option B future feature).
-
-| Field             | Type    |
-| ----------------- | ------- |
-| `id`              | string  |
-| `field_id`        | string  |
-| `analysis_number` | string  |
-| `lab_name`        | string? |
-| `taken_at`        | string? |
-| `received_at`     | string? |
-| `attachment_url`  | string? |
-| `notes`           | string? |
+| Field            | Type              | Notes                                       |
+| ---------------- | ----------------- | ------------------------------------------- |
+| `id`             | string            |                                             |
+| `field_id`       | string            | FK → Field                                  |
+| `varieties`      | `VarietyCount[]`  | `{ variety, tree_count }` per variety       |
+| `tree_count`     | number            | Total across all varieties                  |
+| `planting_year`  | number?           |                                             |
+| `planting_method`| `PlantingMethod`? |                                             |
+| `training_shape` | `TrainingShape`?  |                                             |
+| `rootstock`      | string?           |                                             |
+| `spacing`        | string?           |                                             |
+| `created_at` / `updated_at` | string |                                     |
 
 #### `ProductionRecord`
 
-Harvest record linked to a planting.
+One production **or estimate** record per field per harvest year. Distinguished by `is_estimate` — not two separate row types. Only fruit varieties produce.
 
-| Field               | Type    | Notes                     |
-| ------------------- | ------- | ------------------------- |
-| `id`                | string  |                           |
-| `planting_id`       | string  | FK → Planting             |
-| `harvest_year`      | number  |                           |
-| `quantity_kg`       | number  | Gross/raw weight          |
-| `quantity_clean_kg` | number? | Net/clean weight (ΚΑΘΑΡΟ) |
-| `is_estimate`       | boolean |                           |
-| `price_per_kg`      | number? | Optional realized price   |
-| `notes`             | string? |                           |
+| Field          | Type    | Notes                          |
+| -------------- | ------- | ------------------------------ |
+| `id`           | string  |                                |
+| `field_id`     | string  | FK → Field                     |
+| `harvest_year` | number  |                                |
+| `ac22_kg`      | number  | Yield of AC22                  |
+| `ac76_kg`      | number  | Yield of AC76                  |
+| `quantity_kg`  | number  | Always `ac22_kg + ac76_kg`     |
+| `is_estimate`  | boolean | `false` = actual, `true` = estimate |
+| `notes`        | string? |                                |
+| `created_at` / `updated_at` | string |                    |
+
+#### `Settlement` / `SettlementFile` (Εκκαθάριση)
+
+Official settlement paperwork — a separate entity from production, one per field per year, holding one or more files.
+
+`Settlement`: `id`, `field_id` (FK → Field), `year`, `files: SettlementFile[]`, `notes?`, `created_at`, `updated_at`.
+`SettlementFile`: `id`, `file_name`, `file_url`, `file_type` (`SettlementFileType`), `size_bytes?`, `uploaded_at`.
+
+#### `FieldAnalysis`
+
+Structured lab-analysis record (separate from the uploaded `FieldAnalysisFile`).
+
+`id`, `field_id`, `analysis_number`, `lab_name?`, `taken_at?`, `received_at?`, `attachment_url?`, `notes?`, `created_at`, `updated_at`.
 
 #### `FinancialTransaction`
 
@@ -183,37 +232,43 @@ Payment, debt, or offset record.
 | `vat_note`          | string?           | e.g. "δεν έβαλε ΦΠΑ"                                     |
 | `notes`             | string?           |                                                          |
 | `transaction_date`  | string?           | ISO date                                                 |
+| `created_at` / `updated_at` | string    |                                                          |
 
 #### `FieldPhoto`
 
-| Field      | Type    |
-| ---------- | ------- |
-| `id`       | string  |
-| `field_id` | string  |
-| `url`      | string  |
-| `taken_at` | string? |
-| `notes`    | string? |
+| Field       | Type            | Notes                                          |
+| ----------- | --------------- | ---------------------------------------------- |
+| `id`        | string          |                                                |
+| `field_id`  | string          | FK → Field                                     |
+| `url`       | string          |                                                |
+| `category`  | `PhotoCategory` | One of the 6 categories                        |
+| `taken_at`  | string?         |                                                |
+| `notes`     | string?         |                                                |
+| `created_at`| string          |                                                |
+| `issue`     | `FieldIssue`?   | Server-joined when the photo documents a problem |
 
 #### `FieldIssue`
 
-Problem report for a field.
+Problem report — always tied to a photo.
 
-| Field         | Type            | Notes                         |
-| ------------- | --------------- | ----------------------------- |
-| `id`          | string          |                               |
-| `field_id`    | string          | FK → Field                    |
-| `title`       | string          | Short headline for list views |
-| `description` | string          | Full description              |
-| `severity`    | `IssueSeverity` |                               |
-| `status`      | `IssueStatus`   |                               |
-| `reported_at` | string          | ISO date                      |
-| `resolved_at` | string?         | ISO date                      |
+| Field         | Type            | Notes                             |
+| ------------- | --------------- | --------------------------------- |
+| `id`          | string          |                                   |
+| `field_id`    | string          | FK → Field                        |
+| `photo_id`    | string?         | The photo this issue was reported from |
+| `title`       | string          | Short headline for list views     |
+| `description` | string          | Full description                  |
+| `severity`    | `IssueSeverity` |                                   |
+| `status`      | `IssueStatus`   |                                   |
+| `reported_at` | string          | ISO date                          |
+| `resolved_at` | string?         | ISO date                          |
+| `created_at` / `updated_at` | string |                             |
 
 ---
 
 ## API client (`src/lib/api.ts`)
 
-Base URL: `/api` (proxied by Vite in dev).
+Base URL: `/api`. In the demo, `setupMockApi()` intercepts these calls.
 
 ```ts
 api.get<T>(endpoint);
@@ -221,8 +276,11 @@ api.post<T>(endpoint, data);
 api.put<T>(endpoint, data);
 api.patch<T>(endpoint, data);
 api.delete<T>(endpoint);
-api.list<T>(endpoint, params); // GET with URLSearchParams, returns PaginatedResponse<T>
+api.list<T>(endpoint, params); // GET with URLSearchParams → PaginatedResponse<T>
 ```
+
+- Sets `Content-Type: application/json`; throws the parsed `ApiError` on non-2xx.
+- Returns `undefined` for `204 No Content`.
 
 ### REST endpoints (expected by the frontend)
 
@@ -232,11 +290,12 @@ api.list<T>(endpoint, params); // GET with URLSearchParams, returns PaginatedRes
 | Field                | `/api/fields`       |
 | Planting             | `/api/plantings`    |
 | Production           | `/api/production`   |
+| Settlement           | `/api/settlements`  |
 | FinancialTransaction | `/api/financials`   |
 | FieldPhoto           | `/api/field-photos` |
 | FieldIssue           | `/api/field-issues` |
 
-All list endpoints accept query params: `page`, `page_size`, `search`, `sort_by`, `sort_dir`, plus entity-specific filter keys.
+All list endpoints accept: `page`, `page_size`, `search`, `sort_by`, `sort_dir`, plus entity-specific filter keys.
 
 Response shape for list endpoints:
 
@@ -248,19 +307,25 @@ Response shape for list endpoints:
 
 ## `useTableQuery` hook (`src/hooks/useTableQuery.ts`)
 
-Manages all table state in one place. Options:
+Manages all table state (pagination, debounced search, sort, filters, fetch with request-abort) in one place. Options:
 
 ```ts
 useTableQuery<T>({
   endpoint: string,
-  defaultPageSize?: number,   // default 50
+  defaultPageSize?: number,          // default 50
   defaultSortBy?: string,
-  defaultSortDir?: SortDirection,
-  debounceMs?: number,        // default 300ms
+  defaultSortDir?: SortDirection,    // default "asc"
+  debounceMs?: number,               // default 300ms
+  defaultFilters?: Record<string, string>,
+  staticParams?: Record<string, string>, // always sent, never cleared by clearFilters (e.g. a tab's is_estimate)
 })
 ```
 
 Returns: `data`, `total`, `page`, `pageSize`, `isLoading`, `error`, `search`, `setSearch`, `sortBy`, `sortDir`, `toggleSort`, `filters`, `setFilter`, `clearFilters`, `setPage`, `setPageSize`, `totalPages`, `refetch`.
+
+## `useLookupModal` hook (`src/hooks/useLookupModal.ts`)
+
+`useLookupModal<T>(endpoint)` → `{ record, openById(id?), close }`. Fetches a single record by id (`list({ id })`, takes `data[0]`) and holds it as the open state of a detail modal. Pair with the entity detail modals.
 
 ---
 
@@ -276,7 +341,7 @@ Generic, fully-typed table. Key props:
   onRowClick?={(row) => void}
 
   // State
-  isLoading?   error?
+  isLoading?  error?
 
   // Toolbar
   search?  onSearchChange?  searchPlaceholder?
@@ -290,44 +355,48 @@ Generic, fully-typed table. Key props:
   page?  pageSize?  total?  totalPages?  onPageChange?  onPageSizeChange?
 
   // Virtualization (react-window, for 100+ rows)
-  virtualized?   rowHeight?  maxHeight?
+  virtualized?  rowHeight?  maxHeight?
 />
 ```
 
 `Column<T>` definition:
 
 ```ts
-{ key: string; header: string; render: (row: T) => ReactNode; sortable?: boolean; className?: string }
+{ key: string; header: string; render: (row: T) => ReactNode; sortable?: boolean; className?: string; width?: string }
 ```
 
 ---
 
-## `Modal` component (`src/components/ui/Modal.tsx`)
+## `Modal` & `FormModal` (`src/components/ui/`)
 
 ```ts
-<Modal open={boolean} onClose={() => void} title={string} footer={ReactNode} wide?>
-  {/* form content */}
-</Modal>
+<Modal open onClose title footer? wide?>{/* content */}</Modal>
 ```
 
-- Closes on Escape or overlay click
-- Locks body scroll while open
-- Footer slot is right-aligned (use for Cancel + Submit buttons)
+- Closes on Escape or overlay click; locks body scroll while open; footer slot is right-aligned.
+
+```ts
+<FormModal open onClose title onSubmit saving submitLabel? wide?>{/* fields */}</FormModal>
+```
+
+- Wraps `Modal` with the standard `Ακύρωση` + submit footer. `saving` disables the submit button and shows `Αποθήκευση…`.
 
 ---
 
 ## Shared building blocks (reuse before hand-rolling)
 
-Every list page composes these instead of duplicating markup:
-
-| Module                              | Use for                                                                                                                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ui/FormModal`                      | Create/edit dialogs — wraps `Modal` with the standard `Ακύρωση` + submit footer (`saving` disables the button and shows `Αποθήκευση…`). Props: `open, onClose, title, onSubmit, saving, submitLabel?, wide?`. |
-| `entities/ProducerDetailModal`      | Read-only producer dialog. Pass `producer: Producer \| null` + `onClose`; it fetches and lists that producer's fields itself.                                                                                 |
-| `entities/FieldDetailModal`         | Read-only field dialog. Pass `field: FieldListItem \| null` + `onClose`.                                                                                                                                      |
-| `ui/DescriptionList`                | `InfoField` (grid cell) and `DetailRow` (labelled row); both render `null` on empty value.                                                                                                                    |
-| `hooks/useLookupModal<T>(endpoint)` | Returns `{ record, openById(id?), close }` — fetch a single record by id then open its detail modal. Pair with the two entity modals.                                                                         |
-| `lib/labels`                        | Enum → Greek label maps and enum → `badge-*` class maps (entity/planting/field/issue/financial/photo). Never re-declare these in a page.                                                                      |
+| Module                              | Use for                                                                                                                                     |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui/FormModal`                      | Create/edit dialogs. Props: `open, onClose, title, onSubmit, saving, submitLabel?, wide?`.                                                 |
+| `ui/TextField` / `ui/TextAreaField` / `ui/SelectField` | Labelled form controls (TextField/TextArea via react-aria). Use inside form modals.                                    |
+| `ui/Button`                         | `variant` = `primary` \| `secondary` \| `danger` \| `ghost`.                                                                               |
+| `entities/*FormModal`               | Create/edit dialogs per entity (Producer, Field, Planting, Production, Settlement). Take `open, onClose, onSaved` + optional record to edit. |
+| `entities/ProducerDetailModal`      | Read-only producer dialog. `producer: Producer \| null`, `onClose`, optional `onEdit`; fetches and lists that producer's fields itself.     |
+| `entities/FieldDetailModal`         | Read-only field dialog. `field: Field \| null`, `onClose`, optional `onEdit`.                                                               |
+| `ui/DescriptionList`                | `InfoField` (grid cell) and `DetailRow` (labelled row); both render `null` on empty value.                                                  |
+| `hooks/useLookupModal<T>(endpoint)` | Fetch a single record by id then open its detail modal.                                                                                     |
+| `lib/labels`                        | Enum → Greek label maps, enum → `badge-*` class maps, `VARIETY_ORDER`, `PHOTO_CATEGORY_ORDER`, and `photoIssueBorder()`. Never re-declare these in a page. |
+| `lib/utils`                         | `cn()`, `formatDate()`, `formatMonthYear()`, `formatNumber()`, `formatCurrency()`.                                                          |
 
 ---
 
@@ -357,39 +426,42 @@ EmptyState   ← shown when no data AND no active search/filter
   OR
 DataTable    ← shown when data exists or search/filter is active
   ↓
-Modal        ← create dialog, opened by the header/empty-state button
+*FormModal   ← create/edit dialog
+*DetailModal ← read-only dialog opened by row click (via useLookupModal for cross-entity lookups)
 ```
 
-Creation flow:
+Create/edit flow:
 
-1. User clicks "New X" → `setModalOpen(true)`, form reset to `emptyForm`
-2. User fills form → fields validated on submit (required checks, toast errors)
-3. `api.post(endpoint, payload)` → success toast + `table.refetch()` + modal closes
-4. On error → error toast, modal stays open
+1. Click "New X" (or a row's edit) → open the form modal (`editing` holds the record being edited, or `null` to create).
+2. Fill form → validated on submit (required checks, toast errors).
+3. `api.post`/`api.put(endpoint, payload)` → success toast + `table.refetch()` + modal closes.
+4. On error → error toast, modal stays open.
 
 ---
 
-## Routing (`src/router.tsx`)
+## Routing (`src/router.tsx`) & navigation
 
 All routes render inside `AppLayout`:
 
 | Path            | Page                |
 | --------------- | ------------------- |
-| `/`             | DashboardPage       |
+| `/` (index)     | DashboardPage       |
 | `/producers`    | ProducersListPage   |
 | `/fields`       | FieldsListPage      |
 | `/plantings`    | PlantingsListPage   |
-| `/production`   | ProductionListPage  |
+| `/production`   | ProductionListPage (tabs: Παραγωγή / Εκτίμηση / Εκκαθάριση) |
 | `/financials`   | FinancialsListPage  |
 | `/field-photos` | FieldPhotosListPage |
 | `/field-issues` | FieldIssuesListPage |
+
+The `Sidebar` shows a collapsible Producers section (status sub-links) plus Fields, Plantings, Production, Photos, Issues. The **Financials** nav item is gated behind the `VITE_SHOW_FINANCIALS === "true"` env flag (the route itself always exists).
 
 ---
 
 ## What is NOT yet implemented
 
-- **Detail / edit pages** — clicking a row logs to console; no `/entity/:id` routes exist
-- **FieldAnalysis page** — entity is defined in types but has no page or route
-- **File upload** — FieldPhoto URL is entered manually; no real upload
-- **Authentication** — no auth layer
-- **Dashboard data** — DashboardPage exists but StatCards are static
+- **Real backend** — the app runs on an in-browser mock API (`setupMockApi()`); no live server.
+- **Dedicated detail/edit routes** — editing happens in modals; there are no `/entity/:id` routes.
+- **Real file upload** — analysis/settlement/photo files are referenced by URL; no upload pipeline.
+- **Authentication** — no auth layer.
+- **Dashboard data** — DashboardPage exists but StatCards are static.
