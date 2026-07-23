@@ -58,4 +58,13 @@
   .badge-teal {
     @apply badge bg-teal-100 text-teal-800;
   }
+  .badge-amber {
+    @apply badge bg-amber-100 text-amber-800;
+  }
+  .badge-purple {
+    @apply badge bg-purple-100 text-purple-800;
+  }
+  .badge-indigo {
+    @apply badge bg-indigo-100 text-indigo-800;
+  }
 }

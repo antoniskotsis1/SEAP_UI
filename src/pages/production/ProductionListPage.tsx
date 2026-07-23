@@ -49,6 +49,9 @@ export function ProductionListPage() {
       </div>
 
       {/* ── Active tab ──────────────────────────────────────────────────────── */}
+      {/* Production + estimation are backed by the real /productions API (kg
+          yield, distinguished by isEstimation). Settlement groups the Files API
+          by year. */}
       {tab === "production" && <ProductionRecordsTab isEstimate={false} />}
       {tab === "estimation" && <ProductionRecordsTab isEstimate={true} />}
       {tab === "settlement" && <SettlementsTab />}

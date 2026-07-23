@@ -5,7 +5,7 @@ import { Button } from "./Button";
 interface FormModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
   /** Called when the primary (submit) button is pressed. */
   onSubmit: () => void;
   /** Disables the submit button and swaps its label while a request is in flight. */

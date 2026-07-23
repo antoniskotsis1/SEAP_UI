@@ -1,27 +1,32 @@
 import type { ReactNode } from "react";
-import { FiEdit2, FiMap, FiMapPin, FiGrid, FiFileText } from "react-icons/fi";
+import { FiEdit2, FiGrid, FiFileText } from "react-icons/fi";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { DetailRow } from "@/components/ui/DescriptionList";
-import { VarietyPills } from "@/components/ui/VarietyPills";
 import { formatMonthYear, formatNumber } from "@/lib/utils";
-import { parseCoords, osmEmbedUrl } from "@/lib/geo";
-import { methodLabel, shapeLabel } from "@/lib/labels";
-import type { Field } from "@/types";
+import {
+  methodLabel,
+  shapeLabel,
+  varietyLabel,
+  varietyBadge,
+  VARIETY_ORDER,
+} from "@/lib/labels";
+import type { Field, Variety } from "@/types";
 
-interface FieldDetailModalProps {
+interface PlantingDetailModalProps {
+  /** The field whose planting facet is being viewed. */
   field: Field | null;
   onClose: () => void;
-  /** When provided, an "Επεξεργασία" action is shown that opens the edit form. */
+  /** When provided, an "Επεξεργασία" action opens the field edit form. */
   onEdit?: (field: Field) => void;
 }
 
 /** A summary metric tile. */
-function StatTile({ label, value }: { label: string; value: ReactNode }) {
+function StatTile({ label, value }: { label: ReactNode; value: ReactNode }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-center">
+    <div className="flex flex-col items-center rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 text-center">
       <p className="text-lg font-semibold tabular-nums text-gray-900">{value}</p>
-      <p className="mt-0.5 text-xs text-gray-500">{label}</p>
+      <div className="mt-1 text-xs text-gray-500">{label}</div>
     </div>
   );
 }
@@ -29,31 +34,37 @@ function StatTile({ label, value }: { label: string; value: ReactNode }) {
 function SectionHeading({
   icon,
   children,
+  hint,
 }: {
   icon: ReactNode;
   children: ReactNode;
+  hint?: ReactNode;
 }) {
   return (
     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
       <span className="text-gray-400">{icon}</span>
       {children}
+      {hint != null && (
+        <span className="text-xs font-normal text-gray-400">{hint}</span>
+      )}
     </h3>
   );
 }
 
-/** Read-only field detail dialog shared by every page that links to a field. */
-export function FieldDetailModal({
+/**
+ * Read-only view of a field's **planting** data (variety tree counts + planting
+ * metadata). Plantings are a facet of the field, so editing routes through the
+ * field edit form via `onEdit`.
+ */
+export function PlantingDetailModal({
   field,
   onClose,
   onEdit,
-}: FieldDetailModalProps) {
-  const coords = parseCoords(field?.gps_coordinates);
-  const stremmata = field?.stremmata;
-  const trees = field?.total_plants;
-  const density =
-    stremmata != null && stremmata > 0 && trees != null
-      ? Math.round(trees / stremmata)
-      : null;
+}: PlantingDetailModalProps) {
+  const countOf = (v: Variety): number =>
+    field?.planting_varieties?.find((x) => x.variety === v)?.tree_count ?? 0;
+
+  const total = field?.total_plants ?? 0;
 
   const hasPlantingDetails =
     field &&
@@ -71,7 +82,7 @@ export function FieldDetailModal({
         field ? (
           <span className="flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-              <FiMap className="h-5 w-5" />
+              <FiGrid className="h-5 w-5" />
             </span>
             <span className="flex min-w-0 flex-col">
               <span className="truncate leading-tight">
@@ -105,33 +116,26 @@ export function FieldDetailModal({
     >
       {field && (
         <div className="space-y-6">
-          {/* ── Summary tiles ──────────────────────────────────────────── */}
-          <div className="grid grid-cols-3 gap-2">
-            <StatTile
-              label="Στρέμματα"
-              value={stremmata != null ? formatNumber(stremmata) : "—"}
-            />
-            <StatTile
-              label="Σύνολο Δέντρων"
-              value={trees != null ? formatNumber(trees) : "—"}
-            />
-            <StatTile
-              label="Δέντρα/στρ."
-              value={density != null ? formatNumber(density) : "—"}
-            />
-          </div>
-
           {/* ── Variety composition ────────────────────────────────────── */}
-          {field.planting_varieties && field.planting_varieties.length > 0 && (
-            <section>
-              <SectionHeading icon={<FiGrid className="h-4 w-4" />}>
-                Σύνθεση Φύτευσης
-              </SectionHeading>
-              <div className="rounded-lg border border-gray-200 px-3 py-3">
-                <VarietyPills varieties={field.planting_varieties} />
-              </div>
-            </section>
-          )}
+          <section>
+            <SectionHeading
+              icon={<FiGrid className="h-4 w-4" />}
+              hint={`Σύνολο ${formatNumber(total)} δέντρα`}
+            >
+              Σύνθεση Φύτευσης
+            </SectionHeading>
+            <div className="grid grid-cols-3 gap-2">
+              {VARIETY_ORDER.map((v) => (
+                <StatTile
+                  key={v}
+                  label={
+                    <span className={varietyBadge[v]}>{varietyLabel[v]}</span>
+                  }
+                  value={formatNumber(countOf(v))}
+                />
+              ))}
+            </div>
+          </section>
 
           {/* ── Planting details ───────────────────────────────────────── */}
           {hasPlantingDetails && (
@@ -167,29 +171,6 @@ export function FieldDetailModal({
               </dl>
             </section>
           )}
-
-          {/* ── Location ────────────────────────────────────────────────── */}
-          <section>
-            <SectionHeading icon={<FiMapPin className="h-4 w-4" />}>
-              Τοποθεσία
-            </SectionHeading>
-            <dl className="divide-y divide-gray-100 rounded-lg border border-gray-200 px-3">
-              <DetailRow label="Περιοχή" value={field.region} />
-              <DetailRow label="Συντεταγμένες" value={field.gps_coordinates} />
-            </dl>
-            {coords && (
-              <div className="mt-3 overflow-hidden rounded-lg border border-gray-200">
-                <iframe
-                  src={osmEmbedUrl(coords.lat, coords.lon)}
-                  width="100%"
-                  height="280"
-                  style={{ border: 0 }}
-                  title="Χάρτης τοποθεσίας"
-                  loading="lazy"
-                />
-              </div>
-            )}
-          </section>
 
           {/* ── Comments ────────────────────────────────────────────────── */}
           {field.comments && (

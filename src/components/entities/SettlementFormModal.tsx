@@ -1,37 +1,31 @@
 import { useState, useEffect } from "react";
 import { FiFileText, FiFile, FiDownload } from "react-icons/fi";
+import { FiFolder } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { FormModal } from "@/components/ui/FormModal";
+import { ModalTitle } from "@/components/ui/ModalTitle";
 import { TextField } from "@/components/ui/TextField";
-import { TextAreaField } from "@/components/ui/TextAreaField";
-import { api } from "@/lib/api";
-import type { Settlement, SettlementFile } from "@/types";
+import { filesApi } from "@/lib/services";
+import {
+  encodeSettlementComments,
+  settlementFileKind,
+  settlementFileComment,
+  type SettlementGroup,
+} from "@/lib/settlements";
 
 interface SettlementFormModalProps {
   open: boolean;
-  /** When provided, the dialog edits this settlement (PATCH); otherwise creates one (POST). */
-  settlement?: Settlement | null;
+  /** When provided, adds files to that year's settlement; otherwise creates one. */
+  settlement?: SettlementGroup | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-type SettlementForm = {
-  year: string;
-  comments: string;
-};
-
-const emptyForm: SettlementForm = {
-  year: String(new Date().getFullYear()),
-  comments: "",
-};
-
-const fileTypeOf = (name: string): "PDF" | "EXCEL" =>
-  name.toLowerCase().endsWith(".pdf") ? "PDF" : "EXCEL";
-
 /**
- * Create/edit dialog for a settlement (Εκκαθάριση) — one per year. The partner's
- * files already cover every field, so we only capture the year, the file(s), and
- * optional comments.
+ * Create/manage a settlement (Εκκαθάριση) — one per year, backed by the Files
+ * API. Each file carries its **own** comment. Files are upload-only (no
+ * update/delete), so editing an existing year means **adding** more files; the
+ * year is fixed once set.
  */
 export function SettlementFormModal({
   open,
@@ -40,53 +34,50 @@ export function SettlementFormModal({
   onSaved,
 }: SettlementFormModalProps) {
   const isEdit = !!settlement;
-  const [form, setForm] = useState<SettlementForm>(emptyForm);
+  const [year, setYear] = useState(String(new Date().getFullYear()));
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  // One comment per newly-selected file (parallel to `newFiles`).
+  const [newComments, setNewComments] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setForm(
-        settlement
-          ? { year: String(settlement.year), comments: settlement.comments ?? "" }
-          : emptyForm,
-      );
-      setNewFiles([]);
-    }
+    if (!open) return;
+    setYear(String(settlement?.year ?? new Date().getFullYear()));
+    setNewFiles([]);
+    setNewComments([]);
   }, [open, settlement]);
 
-  const set = (key: keyof SettlementForm, value: string) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const onPickFiles = (files: File[]) => {
+    setNewFiles(files);
+    setNewComments(files.map(() => ""));
+  };
+
+  const setCommentAt = (i: number, value: string) =>
+    setNewComments((prev) => prev.map((c, idx) => (idx === i ? value : c)));
 
   const handleSubmit = async () => {
-    if (!form.year.trim()) {
+    if (!year.trim()) {
       toast.error("Το έτος είναι υποχρεωτικό");
       return;
     }
-    const uploaded: Partial<SettlementFile>[] = newFiles.map((f) => ({
-      file_name: f.name,
-      file_type: fileTypeOf(f.name),
-      size_bytes: f.size,
-    }));
-    const files = [...(settlement?.files ?? []), ...uploaded];
-    if (files.length === 0) {
-      toast.error("Απαιτείται τουλάχιστον ένα αρχείο");
+    if (newFiles.length === 0) {
+      toast.error(
+        isEdit
+          ? "Προσθέστε τουλάχιστον ένα αρχείο. Τα υπάρχοντα αρχεία δεν τροποποιούνται."
+          : "Απαιτείται τουλάχιστον ένα αρχείο",
+      );
       return;
     }
-    const payload = {
-      year: Number(form.year),
-      files,
-      comments: form.comments,
-    };
     setSaving(true);
     try {
-      if (isEdit) {
-        await api.patch(`/settlements/${settlement.id}`, payload);
-        toast.success("Η εκκαθάριση ενημερώθηκε");
-      } else {
-        await api.post("/settlements", payload);
-        toast.success("Η εκκαθάριση δημιουργήθηκε");
+      // Each file uploads with its own comment (multipart, one at a time).
+      for (let i = 0; i < newFiles.length; i++) {
+        await filesApi.upload(
+          newFiles[i]!,
+          encodeSettlementComments(Number(year), newComments[i]),
+        );
       }
+      toast.success(isEdit ? "Η εκκαθάριση ενημερώθηκε" : "Η εκκαθάριση δημιουργήθηκε");
       onSaved();
       onClose();
     } catch {
@@ -100,7 +91,12 @@ export function SettlementFormModal({
     <FormModal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Επεξεργασία Εκκαθάρισης" : "Νέα Εκκαθάριση"}
+      title={
+        <ModalTitle
+          icon={<FiFolder className="h-5 w-5" />}
+          title={isEdit ? "Επεξεργασία Εκκαθάρισης" : "Νέα Εκκαθάριση"}
+        />
+      }
       onSubmit={handleSubmit}
       saving={saving}
       submitLabel={isEdit ? "Αποθήκευση" : "Δημιουργία"}
@@ -109,64 +105,91 @@ export function SettlementFormModal({
         <TextField
           label="Έτος"
           isRequired
-          value={form.year}
-          onChange={(v) => set("year", v)}
+          isDisabled={isEdit}
+          value={year}
+          onChange={setYear}
           inputProps={{ type: "number", step: "1" }}
         />
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Αρχεία (Excel / PDF)
-          </label>
-
-          {isEdit && settlement.files.length > 0 && (
-            <ul className="mb-2 space-y-1">
-              {settlement.files.map((a) => (
-                <li
-                  key={a.id}
-                  className="flex items-center gap-2 text-sm text-gray-600"
-                >
-                  {a.file_type === "PDF" ? (
-                    <FiFile className="h-4 w-4 shrink-0 text-red-500" />
-                  ) : (
-                    <FiFileText className="h-4 w-4 shrink-0 text-green-600" />
-                  )}
-                  <a
-                    href={a.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 truncate hover:text-brand-600 hover:underline"
-                  >
-                    {a.file_name}
-                    <FiDownload className="h-3 w-3 shrink-0" />
-                  </a>
-                </li>
-              ))}
+        {/* Existing files — each with its own comment (read-only). */}
+        {isEdit && settlement.files.length > 0 && (
+          <div>
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              Υπάρχοντα αρχεία
+            </span>
+            <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+              {settlement.files.map((f) => {
+                const note = settlementFileComment(f);
+                return (
+                  <li key={f.id} className="px-3 py-2">
+                    <a
+                      href={f.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-gray-700 hover:text-brand-600 hover:underline"
+                    >
+                      {settlementFileKind(f) === "PDF" ? (
+                        <FiFile className="h-4 w-4 shrink-0 text-red-500" />
+                      ) : (
+                        <FiFileText className="h-4 w-4 shrink-0 text-green-600" />
+                      )}
+                      <span className="truncate">{f.originalFilename}</span>
+                      <FiDownload className="h-3 w-3 shrink-0" />
+                    </a>
+                    <p className="mt-0.5 pl-6 text-xs text-gray-500">
+                      {note || "—"}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
-          )}
+          </div>
+        )}
 
+        {/* Add new files — each with its own comment. */}
+        <div>
+          <span className="mb-1 block text-sm font-medium text-gray-700">
+            {isEdit ? "Προσθήκη αρχείων" : "Αρχεία (Excel / PDF)"}
+          </span>
           <input
             type="file"
             multiple
             accept=".xls,.xlsx,.csv,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))}
+            onChange={(e) => onPickFiles(Array.from(e.target.files ?? []))}
             className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
           />
+
           {newFiles.length > 0 && (
-            <ul className="mt-2 space-y-1 text-sm text-gray-600">
-              {newFiles.map((f, i) => (
-                <li key={`${f.name}-${i}`}>{f.name}</li>
-              ))}
+            <ul className="mt-3 space-y-3">
+              {newFiles.map((f, i) => {
+                const isPdf =
+                  f.type.includes("pdf") ||
+                  f.name.toLowerCase().endsWith(".pdf");
+                return (
+                <li
+                  key={`${f.name}-${i}`}
+                  className="rounded-lg border border-gray-200 p-3"
+                >
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                    {isPdf ? (
+                      <FiFile className="h-4 w-4 shrink-0 text-red-500" />
+                    ) : (
+                      <FiFileText className="h-4 w-4 shrink-0 text-green-600" />
+                    )}
+                    <span className="truncate">{f.name}</span>
+                  </div>
+                  <TextField
+                    label="Σχόλιο αρχείου"
+                    value={newComments[i] ?? ""}
+                    onChange={(v) => setCommentAt(i, v)}
+                    placeholder="Προαιρετικό σχόλιο για αυτό το αρχείο…"
+                  />
+                </li>
+                );
+              })}
             </ul>
           )}
         </div>
-
-        <TextAreaField
-          label="Σχόλια"
-          value={form.comments}
-          onChange={(v) => set("comments", v)}
-          placeholder="Προαιρετικά σχόλια για την εκκαθάριση…"
-        />
       </div>
     </FormModal>
   );

@@ -4,7 +4,7 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  base: "/SEAP_UI/",
+  base: "/seapp/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -23,7 +23,8 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      "/api": {
+      // SEAPP backend context path (server.servlet.context-path).
+      "/seappi": {
         target: "http://localhost:8080",
         changeOrigin: true,
       },

@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
 import { ProducerFormModal } from "@/components/entities/ProducerFormModal";
-import { useTableQuery } from "@/hooks/useTableQuery";
+import { useApiTable } from "@/hooks/useApiTable";
+import { toProducerListItem } from "@/lib/adapters";
 import { cn } from "@/lib/utils";
+import type { ProducerDto } from "@/types/api";
 import type { Producer, ProducerListItem } from "@/types";
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
@@ -24,7 +26,7 @@ const TABS: { key: TabKey; label: string }[] = [
 
 const columns: Column<ProducerListItem>[] = [
   {
-    key: "display_name",
+    key: "name",
     header: "Όνομα",
     sortable: true,
     render: (row) => (
@@ -32,17 +34,6 @@ const columns: Column<ProducerListItem>[] = [
         {row.display_name}
       </span>
     ),
-  },
-  {
-    key: "total_stremmata",
-    header: "Συνολικά Στρέμματα",
-    sortable: true,
-    render: (row) =>
-      row.total_stremmata != null ? (
-        <span className="tabular-nums">{row.total_stremmata} στρ.</span>
-      ) : (
-        "—"
-      ),
   },
   {
     key: "phone",
@@ -57,14 +48,23 @@ const columns: Column<ProducerListItem>[] = [
   },
 ];
 
+/** DataTable column key → API `ProducerSortField`. */
+const sortColumnMap: Record<string, string> = {
+  name: "NAME",
+  region: "REGION",
+};
+
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function ProducersListPage() {
   const [tab, setTab] = useState<TabKey>("ACTIVE");
 
-  const table = useTableQuery<ProducerListItem>({
+  const table = useApiTable<ProducerDto, ProducerListItem>({
     endpoint: "/producers",
-    defaultSortBy: "display_name",
+    adapt: toProducerListItem,
+    sortColumnMap,
+    searchFilterKey: "name",
+    defaultSortBy: "name",
     defaultFilters: { status: tab },
   });
 
@@ -153,7 +153,7 @@ export function ProducersListPage() {
           error={table.error}
           search={table.search}
           onSearchChange={table.setSearch}
-          searchPlaceholder="Αναζήτηση ονόματος, ΑΦΜ, τηλεφώνου…"
+          searchPlaceholder="Αναζήτηση ονόματος…"
           sortBy={table.sortBy}
           sortDir={table.sortDir}
           onSort={table.toggleSort}

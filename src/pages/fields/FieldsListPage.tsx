@@ -9,35 +9,18 @@ import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
 import { FieldFormModal } from "@/components/entities/FieldFormModal";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
 import { VarietyPills } from "@/components/ui/VarietyPills";
-import { useTableQuery } from "@/hooks/useTableQuery";
-import { useLookupModal } from "@/hooks/useLookupModal";
+import { useApiTable } from "@/hooks/useApiTable";
+import { useApiLookup } from "@/hooks/useApiLookup";
+import { producersApi } from "@/lib/services";
+import { toField, toProducer } from "@/lib/adapters";
 import { formatNumber, formatMonthYear } from "@/lib/utils";
-import type { Field, Producer } from "@/types";
+import { parseCoords, osmEmbedUrl } from "@/lib/geo";
+import type { FieldDto } from "@/types/api";
+import type { Field } from "@/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type FieldRow = Field;
-
-// ─── Map helpers ─────────────────────────────────────────────────────────────
-
-function parseDmsCoords(coords: string): { lat: number; lon: number } | null {
-  const m = coords.match(
-    /(\d+)°(\d+)'([\d.]+)"([NS])\s+(\d+)°(\d+)'([\d.]+)"([EW])/,
-  );
-  if (!m) return null;
-  const lat =
-    (Number(m[1]) + Number(m[2]) / 60 + Number(m[3]) / 3600) *
-    (m[4] === "S" ? -1 : 1);
-  const lon =
-    (Number(m[5]) + Number(m[6]) / 60 + Number(m[7]) / 3600) *
-    (m[8] === "W" ? -1 : 1);
-  return { lat, lon };
-}
-
-function osmEmbedUrl(lat: number, lon: number): string {
-  const d = 0.008;
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${lon - d},${lat - d},${lon + d},${lat + d}&layer=mapnik&marker=${lat},${lon}`;
-}
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
@@ -82,11 +65,9 @@ function buildColumns(
       key: "region",
       header: "Περιοχή",
       sortable: true,
-      width: "minmax(120px, 1fr)",
+      width: "minmax(120px, 0.5fr)",
       render: (row) => {
-        const coords = row.gps_coordinates
-          ? parseDmsCoords(row.gps_coordinates)
-          : null;
+        const coords = parseCoords(row.gps_coordinates);
         const label = row.region || "—";
         // Whole cell swallows the row click so the region column never opens
         // the field detail; with coords it opens the map instead.
@@ -111,27 +92,30 @@ function buildColumns(
       key: "stremmata",
       header: "Στρέμματα",
       sortable: true,
-      width: "minmax(90px, 0.7fr)",
+      width: "minmax(80px, 0.5fr)",
+      className: "justify-start text-right tabular-nums",
       render: (row) =>
         row.stremmata != null ? formatNumber(row.stremmata) : "—",
     },
     {
       key: "planting_summary",
-      header: "Αρ. Δέντρων",
-      width: "minmax(160px, 1.3fr)",
+      header: "Ανά ποικιλία",
+      width: "minmax(150px, 1fr)",
       render: (row) => <VarietyPills varieties={row.planting_varieties} />,
     },
     {
       key: "tree_count",
-      header: "Σύνολο Δέντρων",
-      width: "minmax(90px, 0.6fr)",
+      header: "Σύνολο",
+      sortable: true,
+      width: "minmax(80px, 0.5fr)",
+      className: "justify-start text-right",
       render: (row) => {
         const total = (row.planting_varieties ?? []).reduce(
           (sum, v) => sum + v.tree_count,
           0,
         );
         return total > 0 ? (
-          <span className="font-medium tabular-nums">
+          <span className="font-semibold tabular-nums text-gray-900">
             {formatNumber(total)}
           </span>
         ) : (
@@ -150,12 +134,24 @@ function buildColumns(
   ];
 }
 
+/** DataTable column key → API `FieldSortField`. */
+const sortColumnMap: Record<string, string> = {
+  producer_name: "LOCATION_NAME",
+  region: "REGION",
+  stremmata: "AREA",
+  tree_count: "TOTAL_TREES",
+  planting_date: "PLANTING_DATE",
+};
+
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FieldsListPage() {
-  const table = useTableQuery<FieldRow>({
+  const table = useApiTable<FieldDto, FieldRow>({
     endpoint: "/fields",
-    defaultSortBy: "location_name",
+    adapt: toField,
+    sortColumnMap,
+    searchFilterKey: "locationName",
+    defaultSortBy: "producer_name",
   });
 
   // ── Create / edit form modal ────────────────────────────────────────────
@@ -168,7 +164,7 @@ export function FieldsListPage() {
   const [detailRow, setDetailRow] = useState<FieldRow | null>(null);
 
   // Producer detail modal, looked up by the field's producer_id.
-  const producer = useLookupModal<Producer>("/producers");
+  const producer = useApiLookup(producersApi.get, toProducer);
 
   const isEmpty =
     !table.isLoading &&
@@ -194,9 +190,7 @@ export function FieldsListPage() {
   );
 
   // Map dialog coords
-  const mapCoords = mapRow?.gps_coordinates
-    ? parseDmsCoords(mapRow.gps_coordinates)
-    : null;
+  const mapCoords = parseCoords(mapRow?.gps_coordinates);
 
   return (
     <>

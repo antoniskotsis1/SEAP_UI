@@ -4,18 +4,22 @@ import { FormModal } from "@/components/ui/FormModal";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
 import { SelectField } from "@/components/ui/SelectField";
-import { api } from "@/lib/api";
+import { ModalTitle } from "@/components/ui/ModalTitle";
+import { FiMap } from "react-icons/fi";
+import { fieldsApi, producersApi } from "@/lib/services";
+import { toProducer } from "@/lib/adapters";
+import type { CreateFieldDto } from "@/types/api";
 import type {
   Field,
-  FieldAnalysisFile,
   PlantingMethod,
   Producer,
   TrainingShape,
+  Variety,
 } from "@/types";
 
 interface FieldFormModalProps {
   open: boolean;
-  /** When provided, the dialog edits this field (PATCH); otherwise it creates one (POST). */
+  /** When provided, the dialog edits this field (PUT); otherwise it creates one (POST). */
   field?: Field | null;
   onClose: () => void;
   /** Called after a successful create/update so the caller can refetch. */
@@ -26,14 +30,16 @@ type FieldForm = {
   producer_id: string;
   location_name: string;
   region: string;
-  stremmata: string;
+  area: string;
   gps_coordinates: string;
   planting_date: string;
   planting_method: PlantingMethod | "";
   training_shape: TrainingShape | "";
   rootstock: string;
   spacing: string;
-  total_plants: string;
+  male_count: string;
+  ac22_count: string;
+  ac76_count: string;
   comments: string;
 };
 
@@ -41,36 +47,52 @@ const emptyForm: FieldForm = {
   producer_id: "",
   location_name: "",
   region: "",
-  stremmata: "",
+  area: "",
   gps_coordinates: "",
   planting_date: "",
   planting_method: "",
   training_shape: "",
   rootstock: "",
   spacing: "",
-  total_plants: "",
+  male_count: "",
+  ac22_count: "",
+  ac76_count: "",
   comments: "",
+};
+
+/** Per-variety tree count from the field's `planting_varieties` (0 when absent). */
+const countOf = (f: Field, variety: Variety): string => {
+  const n = f.planting_varieties?.find((v) => v.variety === variety)?.tree_count;
+  return n ? String(n) : "";
 };
 
 const toForm = (f: Field): FieldForm => ({
   producer_id: f.producer_id ?? "",
   location_name: f.location_name ?? "",
   region: f.region ?? "",
-  stremmata: f.stremmata != null ? String(f.stremmata) : "",
+  area: f.stremmata != null ? String(f.stremmata) : "",
   gps_coordinates: f.gps_coordinates ?? "",
   planting_date: f.planting_date ?? "",
   planting_method: f.planting_method ?? "",
   training_shape: f.training_shape ?? "",
   rootstock: f.rootstock ?? "",
   spacing: f.spacing ?? "",
-  total_plants: f.total_plants != null ? String(f.total_plants) : "",
+  male_count: countOf(f, "MALE"),
+  ac22_count: countOf(f, "AC22"),
+  ac76_count: countOf(f, "AC76"),
   comments: f.comments ?? "",
 });
 
+/** Parse a non-negative integer count field; empty → 0. */
+const toCount = (value: string): number => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+};
+
 /**
- * Create/edit dialog for a field. Pass a `field` to edit it (PATCH), or omit
- * it to create a new one (POST). Shared by the list page and the detail
- * modal's edit action.
+ * Create/edit dialog for a field. Pass a `field` to edit it (PUT), or omit it
+ * to create a new one (POST). Shared by the list page and the detail modal's
+ * edit action.
  */
 export function FieldFormModal({
   open,
@@ -80,27 +102,20 @@ export function FieldFormModal({
 }: FieldFormModalProps) {
   const isEdit = !!field;
   const [form, setForm] = useState<FieldForm>(emptyForm);
-  const [analysisFiles, setAnalysisFiles] = useState<File[]>([]);
   const [producers, setProducers] = useState<Producer[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Producers for the owner dropdown.
   useEffect(() => {
-    api
-      .list<Producer>("/producers", {
-        page_size: 1000,
-        sort_by: "display_name",
-      })
-      .then((r) => setProducers(r.data))
+    producersApi
+      .list({ size: 1000, sortBy: "SURNAME" })
+      .then((r) => setProducers(r.content.map(toProducer)))
       .catch(() => setProducers([]));
   }, []);
 
   // Populate (edit) or reset (create) the form each time the dialog opens.
   useEffect(() => {
-    if (open) {
-      setForm(field ? toForm(field) : emptyForm);
-      setAnalysisFiles([]);
-    }
+    if (open) setForm(field ? toForm(field) : emptyForm);
   }, [open, field]);
 
   const set = (key: keyof FieldForm, value: string) =>
@@ -115,35 +130,29 @@ export function FieldFormModal({
       toast.error("Ο παραγωγός είναι υποχρεωτικός");
       return;
     }
-    const newAnalyses: Partial<FieldAnalysisFile>[] = analysisFiles.map((f) => ({
-      file_name: f.name,
-      size_bytes: f.size,
-    }));
-    const analyses = [...(field?.analyses ?? []), ...newAnalyses];
-    const payload = {
-      producer_id: form.producer_id,
-      producer_name:
-        producers.find((p) => p.id === form.producer_id)?.display_name,
-      location_name: form.location_name,
-      region: form.region || undefined,
-      stremmata: form.stremmata ? Number(form.stremmata) : undefined,
-      gps_coordinates: form.gps_coordinates || undefined,
-      analyses: analyses.length ? analyses : undefined,
-      planting_date: form.planting_date || undefined,
-      planting_method: form.planting_method || undefined,
-      training_shape: form.training_shape || undefined,
-      rootstock: form.rootstock || undefined,
-      spacing: form.spacing || undefined,
-      total_plants: form.total_plants ? Number(form.total_plants) : undefined,
-      comments: form.comments || undefined,
+    const payload: CreateFieldDto = {
+      producerId: form.producer_id,
+      locationName: form.location_name.trim(),
+      region: form.region.trim() || null,
+      area: form.area ? Number(form.area) : null,
+      gpsCoordinates: form.gps_coordinates.trim() || null,
+      plantingDate: form.planting_date || null,
+      plantingMethod: form.planting_method || null,
+      trainingShape: form.training_shape || null,
+      rootstock: form.rootstock.trim() || null,
+      spacing: form.spacing.trim() || null,
+      maleCount: toCount(form.male_count),
+      ac22Count: toCount(form.ac22_count),
+      ac76Count: toCount(form.ac76_count),
+      comments: form.comments.trim() || null,
     };
     setSaving(true);
     try {
       if (isEdit) {
-        await api.patch(`/fields/${field.id}`, payload);
+        await fieldsApi.update(field.id, payload);
         toast.success("Το χωράφι ενημερώθηκε");
       } else {
-        await api.post("/fields", payload);
+        await fieldsApi.create(payload);
         toast.success("Το χωράφι δημιουργήθηκε");
       }
       onSaved();
@@ -159,7 +168,12 @@ export function FieldFormModal({
     <FormModal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Επεξεργασία Χωραφιού" : "Νέο Χωράφι"}
+      title={
+        <ModalTitle
+          icon={<FiMap className="h-5 w-5" />}
+          title={isEdit ? "Επεξεργασία Χωραφιού" : "Νέο Χωράφι"}
+        />
+      }
       onSubmit={handleSubmit}
       saving={saving}
       submitLabel={isEdit ? "Αποθήκευση" : "Δημιουργία"}
@@ -198,52 +212,46 @@ export function FieldFormModal({
         <div className="grid grid-cols-2 gap-4">
           <TextField
             label="Στρέμματα"
-            value={form.stremmata}
-            onChange={(v) => set("stremmata", v)}
+            value={form.area}
+            onChange={(v) => set("area", v)}
             placeholder="π.χ. 12.5"
             inputProps={{ type: "number", step: "0.1" }}
           />
           <TextField
-            label="Αρ. Δέντρων"
-            value={form.total_plants}
-            onChange={(v) => set("total_plants", v)}
-            placeholder="π.χ. 320"
-            inputProps={{ type: "number", step: "1", min: "0" }}
+            label="GPS Συντεταγμένες"
+            value={form.gps_coordinates}
+            onChange={(v) => set("gps_coordinates", v)}
+            placeholder={`"π.χ. 39°07'25.4N 20°55'11.1E"`}
           />
         </div>
 
-        <TextField
-          label="GPS Συντεταγμένες"
-          value={form.gps_coordinates}
-          onChange={(v) => set("gps_coordinates", v)}
-          placeholder={`"π.χ. 39°07'25.4N 20°55'11.1E"`}
-        />
+        <hr className="border-gray-200" />
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Αριθμός Δέντρων ανά Ποικιλία
+        </p>
 
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Αναλύσεις (Excel)
-          </label>
-          {isEdit && field?.analyses && field.analyses.length > 0 && (
-            <ul className="mb-2 space-y-1 text-sm text-gray-600">
-              {field.analyses.map((a) => (
-                <li key={a.id}>{a.file_name}</li>
-              ))}
-            </ul>
-          )}
-          <input
-            type="file"
-            multiple
-            accept=".xls,.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-            onChange={(e) => setAnalysisFiles(Array.from(e.target.files ?? []))}
-            className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+        <div className="grid grid-cols-3 gap-4">
+          <TextField
+            label="Αρσενικά"
+            value={form.male_count}
+            onChange={(v) => set("male_count", v)}
+            placeholder="0"
+            inputProps={{ type: "number", step: "1", min: "0" }}
           />
-          {analysisFiles.length > 0 && (
-            <ul className="mt-2 space-y-1 text-sm text-gray-600">
-              {analysisFiles.map((f, i) => (
-                <li key={`${f.name}-${i}`}>{f.name}</li>
-              ))}
-            </ul>
-          )}
+          <TextField
+            label="AC22"
+            value={form.ac22_count}
+            onChange={(v) => set("ac22_count", v)}
+            placeholder="0"
+            inputProps={{ type: "number", step: "1", min: "0" }}
+          />
+          <TextField
+            label="AC76"
+            value={form.ac76_count}
+            onChange={(v) => set("ac76_count", v)}
+            placeholder="0"
+            inputProps={{ type: "number", step: "1", min: "0" }}
+          />
         </div>
 
         <hr className="border-gray-200" />

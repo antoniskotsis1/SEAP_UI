@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiAlertTriangle, FiPlus, FiUsers } from "react-icons/fi";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -6,62 +6,66 @@ import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
 import { FieldDetailModal } from "@/components/entities/FieldDetailModal";
+import { IssueDetailModal } from "@/components/entities/IssueDetailModal";
 import { FieldIssueFormModal } from "@/components/entities/FieldIssueFormModal";
-import { useTableQuery } from "@/hooks/useTableQuery";
-import { useLookupModal } from "@/hooks/useLookupModal";
+import { useApiTable } from "@/hooks/useApiTable";
+import { useApiLookup } from "@/hooks/useApiLookup";
+import { fieldsApi, producersApi } from "@/lib/services";
+import { toField, toProducer } from "@/lib/adapters";
 import { formatDate } from "@/lib/utils";
 import {
   severityLabel,
   severityBadge,
-  issueStatusLabel,
-  issueStatusBadge,
+  issueStateLabel,
+  issueStateBadge,
+  ISSUE_STATE_ORDER,
 } from "@/lib/labels";
-import type {
-  FieldIssue,
-  FilterOption,
-  Producer,
-  Field,
-} from "@/types";
+import type { IssueDto } from "@/types/api";
+import type { FilterOption } from "@/types";
 
-// ─── Extended row type ───────────────────────────────────────────────────────
+// ─── Field resolution ────────────────────────────────────────────────────────
 
-type IssueRow = FieldIssue & {
-  field_name?: string;
-  owner_name?: string;
-  producer_id?: string;
-  photo_url?: string;
-};
+type FieldInfo = { location: string; producer: string; producerId: string };
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
 function buildColumns(
-  onFieldClick: (row: IssueRow) => void,
-  onOwnerClick: (row: IssueRow) => void,
-): Column<IssueRow>[] {
+  fieldInfo: (fieldId: string | null | undefined) => FieldInfo,
+  onFieldClick: (fieldId: string) => void,
+  onOwnerClick: (producerId: string) => void,
+): Column<IssueDto>[] {
   return [
     {
       key: "owner_name",
       header: "Παραγωγός / Χωράφι",
-      sortable: true,
-      render: (row) => (
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onOwnerClick(row); }}
-            className="flex items-center gap-1 truncate text-left font-medium text-brand-600 hover:underline"
-          >
-            <FiUsers className="h-3 w-3 shrink-0" />
-            {row.owner_name || "—"}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onFieldClick(row); }}
-            className="block truncate text-left text-xs text-gray-400 hover:text-brand-500"
-          >
-            {row.field_name || "—"}
-          </button>
-        </div>
-      ),
+      render: (row) => {
+        const info = fieldInfo(row.fieldId);
+        return (
+          <div className="min-w-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (info.producerId) onOwnerClick(info.producerId);
+              }}
+              className="flex items-center gap-1 truncate text-left font-medium text-brand-600 hover:underline"
+            >
+              <FiUsers className="h-3 w-3 shrink-0" />
+              {info.producer || "—"}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (row.fieldId) onFieldClick(row.fieldId);
+              }}
+              className="block truncate text-left text-xs text-gray-400 hover:text-brand-500"
+            >
+              {info.location || "—"}
+            </button>
+          </div>
+        );
+      },
     },
     {
       key: "title",
@@ -82,20 +86,20 @@ function buildColumns(
       ),
     },
     {
-      key: "status",
+      key: "state",
       header: "Κατάσταση",
       sortable: true,
       render: (row) => (
-        <span className={issueStatusBadge[row.status]}>
-          {issueStatusLabel[row.status]}
+        <span className={issueStateBadge[row.state]}>
+          {issueStateLabel[row.state]}
         </span>
       ),
     },
     {
-      key: "reported_at",
+      key: "created_at",
       header: "Ημ. Αναφοράς",
       sortable: true,
-      render: (row) => formatDate(row.reported_at),
+      render: (row) => formatDate(row.createdAt),
     },
   ];
 }
@@ -113,35 +117,78 @@ const filterDefs: FilterOption[] = [
     ],
   },
   {
-    key: "status",
+    key: "state",
     label: "Κατάσταση",
-    options: [
-      { value: "OPEN", label: "Ανοιχτό" },
-      { value: "RESOLVED", label: "Επιλύθηκε" },
-    ],
+    options: ISSUE_STATE_ORDER.map((s) => ({
+      value: s,
+      label: issueStateLabel[s],
+    })),
   },
 ];
+
+/** DataTable column key → API `IssueSortField`. */
+const sortColumnMap: Record<string, string> = {
+  title: "TITLE",
+  severity: "SEVERITY",
+  state: "STATE",
+  created_at: "CREATED_AT",
+};
 
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function FieldIssuesListPage() {
-  const table = useTableQuery<IssueRow>({
-    endpoint: "/field-issues",
-    defaultSortBy: "reported_at",
+  const table = useApiTable<IssueDto, IssueDto>({
+    endpoint: "/issues",
+    adapt: (dto) => dto,
+    sortColumnMap,
+    defaultSortBy: "created_at",
     defaultSortDir: "desc",
   });
 
+  // Resolve fieldId → { location, producer, producerId } for the first column.
+  const [fieldInfoMap, setFieldInfoMap] = useState<Map<string, FieldInfo>>(
+    new Map(),
+  );
+  useEffect(() => {
+    fieldsApi
+      .list({ size: 1000, sortBy: "LOCATION_NAME" })
+      .then((r) => {
+        const map = new Map<string, FieldInfo>();
+        for (const dto of r.content) {
+          map.set(dto.id, {
+            location: dto.locationName,
+            producer: dto.producerName ?? "",
+            producerId: dto.producerId,
+          });
+        }
+        setFieldInfoMap(map);
+      })
+      .catch(() => setFieldInfoMap(new Map()));
+  }, []);
+
+  const fieldInfo = useMemo(
+    () => (fieldId: string | null | undefined): FieldInfo =>
+      (fieldId && fieldInfoMap.get(fieldId)) || {
+        location: "",
+        producer: "",
+        producerId: "",
+      },
+    [fieldInfoMap],
+  );
+
   // ── Detail modals (owner / field lookups) ──────────────────────────────────
-  const owner = useLookupModal<Producer>("/producers");
-  const field = useLookupModal<Field>("/fields");
+  const owner = useApiLookup(producersApi.get, toProducer);
+  const field = useApiLookup(fieldsApi.get, toField);
 
   // A `null` editing target means "create"; a row means "edit that issue".
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<IssueRow | null>(null);
+  const [editing, setEditing] = useState<IssueDto | null>(null);
+  const [detail, setDetail] = useState<IssueDto | null>(null);
 
   const columns = buildColumns(
-    (row) => field.openById(row.field_id),
-    (row) => owner.openById(row.producer_id),
+    fieldInfo,
+    (fieldId) => field.openById(fieldId),
+    (producerId) => owner.openById(producerId),
   );
 
   const isEmpty =
@@ -154,7 +201,7 @@ export function FieldIssuesListPage() {
     setEditing(null);
     setFormOpen(true);
   };
-  const openEdit = (row: IssueRow) => {
+  const openEdit = (row: IssueDto) => {
     setEditing(row);
     setFormOpen(true);
   };
@@ -189,7 +236,7 @@ export function FieldIssuesListPage() {
           columns={columns}
           data={table.data}
           keyExtractor={(row) => row.id}
-          onRowClick={openEdit}
+          onRowClick={setDetail}
           isLoading={table.isLoading}
           error={table.error}
           search={table.search}
@@ -216,6 +263,18 @@ export function FieldIssuesListPage() {
 
       {/* ── Field detail modal ───────────────────────────────────────────── */}
       <FieldDetailModal field={field.record} onClose={field.close} />
+
+      {/* ── Issue detail (read-only) → edit routes through the form ───────── */}
+      <IssueDetailModal
+        issue={detail}
+        fieldName={detail ? fieldInfo(detail.fieldId).location : undefined}
+        producerName={detail ? fieldInfo(detail.fieldId).producer : undefined}
+        onClose={() => setDetail(null)}
+        onEdit={(row) => {
+          setDetail(null);
+          openEdit(row);
+        }}
+      />
 
       {/* ── Create / edit issue modal ────────────────────────────────────── */}
       <FieldIssueFormModal

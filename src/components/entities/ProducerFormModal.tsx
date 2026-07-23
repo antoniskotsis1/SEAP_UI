@@ -4,7 +4,10 @@ import { FormModal } from "@/components/ui/FormModal";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
 import { SelectField } from "@/components/ui/SelectField";
-import { api } from "@/lib/api";
+import { ModalTitle } from "@/components/ui/ModalTitle";
+import { FiUser } from "react-icons/fi";
+import { producersApi } from "@/lib/services";
+import type { CreateProducerDto } from "@/types/api";
 import type { Producer, ProducerStatus } from "@/types";
 
 interface ProducerFormModalProps {
@@ -17,7 +20,8 @@ interface ProducerFormModalProps {
 }
 
 type ProducerForm = {
-  display_name: string;
+  name: string;
+  surname: string;
   status: ProducerStatus;
   afm: string;
   phone: string;
@@ -28,7 +32,8 @@ type ProducerForm = {
 };
 
 const emptyForm: ProducerForm = {
-  display_name: "",
+  name: "",
+  surname: "",
   status: "LEAD",
   afm: "",
   phone: "",
@@ -38,16 +43,28 @@ const emptyForm: ProducerForm = {
   notes: "",
 };
 
-const toForm = (p: Producer): ProducerForm => ({
-  display_name: p.display_name ?? "",
-  status: p.status,
-  afm: p.afm ?? "",
-  phone: p.phone ?? "",
-  email: p.email ?? "",
-  representative_name: p.representative_name ?? "",
-  region: p.region ?? "",
-  notes: p.notes ?? "",
-});
+/** Split a legacy single display_name on the first space as a fallback. */
+function splitDisplayName(displayName: string): { name: string; surname: string } {
+  const trimmed = displayName.trim();
+  const idx = trimmed.indexOf(" ");
+  if (idx === -1) return { name: trimmed, surname: "" };
+  return { name: trimmed.slice(0, idx), surname: trimmed.slice(idx + 1) };
+}
+
+const toForm = (p: Producer): ProducerForm => {
+  const fallback = splitDisplayName(p.display_name ?? "");
+  return {
+    name: p.name ?? fallback.name,
+    surname: p.surname ?? fallback.surname,
+    status: p.status,
+    afm: p.afm ?? "",
+    phone: p.phone ?? "",
+    email: p.email ?? "",
+    representative_name: p.representative_name ?? "",
+    region: p.region ?? "",
+    notes: p.notes ?? "",
+  };
+};
 
 /**
  * Create/edit dialog for a producer. Pass a `producer` to edit it (PATCH),
@@ -73,17 +90,32 @@ export function ProducerFormModal({
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
-    if (!form.display_name.trim()) {
+    if (!form.name.trim()) {
       toast.error("Το όνομα είναι υποχρεωτικό");
       return;
     }
+    if (!form.surname.trim()) {
+      toast.error("Το επώνυμο είναι υποχρεωτικό");
+      return;
+    }
+    const payload: CreateProducerDto = {
+      name: form.name.trim(),
+      surname: form.surname.trim(),
+      status: form.status,
+      taxIdentificationNumber: form.afm.trim() || null,
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
+      representativeName: form.representative_name.trim() || null,
+      region: form.region.trim() || null,
+      notes: form.notes.trim() || null,
+    };
     setSaving(true);
     try {
       if (isEdit) {
-        await api.patch(`/producers/${producer.id}`, form);
+        await producersApi.update(producer.id, payload);
         toast.success("Ο παραγωγός ενημερώθηκε");
       } else {
-        await api.post("/producers", form);
+        await producersApi.create(payload);
         toast.success("Ο παραγωγός δημιουργήθηκε");
       }
       onSaved();
@@ -99,19 +131,33 @@ export function ProducerFormModal({
     <FormModal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Επεξεργασία Παραγωγού" : "Νέος Παραγωγός"}
+      title={
+        <ModalTitle
+          icon={<FiUser className="h-5 w-5" />}
+          title={isEdit ? "Επεξεργασία Παραγωγού" : "Νέος Παραγωγός"}
+        />
+      }
       onSubmit={handleSubmit}
       saving={saving}
       submitLabel={isEdit ? "Αποθήκευση" : "Δημιουργία"}
     >
       <div className="space-y-4">
-        <TextField
-          label="Όνομα"
-          isRequired
-          value={form.display_name}
-          onChange={(v) => set("display_name", v)}
-          placeholder="π.χ. Γιώργος Παπαδόπουλος"
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <TextField
+            label="Όνομα"
+            isRequired
+            value={form.name}
+            onChange={(v) => set("name", v)}
+            placeholder="π.χ. Γιώργος"
+          />
+          <TextField
+            label="Επώνυμο"
+            isRequired
+            value={form.surname}
+            onChange={(v) => set("surname", v)}
+            placeholder="π.χ. Παπαδόπουλος"
+          />
+        </div>
 
         <SelectField
           label="Κατάσταση"

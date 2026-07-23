@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { RequireAuth } from "@/components/RequireAuth";
 import { PageFallback } from "@/components/ui/PageFallback";
@@ -63,7 +63,9 @@ export const router = createBrowserRouter(
         </RequireAuth>
       ),
       children: [
-        { index: true, element: lazyRoute(<DashboardPage />) },
+        // Land on the first fully-working page; Dashboard is not served yet.
+        { index: true, element: <Navigate to="/producers" replace /> },
+        { path: "dashboard", element: lazyRoute(<DashboardPage />) },
         { path: "producers", element: lazyRoute(<ProducersListPage />) },
         { path: "fields", element: lazyRoute(<FieldsListPage />) },
         { path: "plantings", element: lazyRoute(<PlantingsListPage />) },
@@ -74,5 +76,5 @@ export const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: "/SEAP_UI" },
+  { basename: "/seapp" },
 );

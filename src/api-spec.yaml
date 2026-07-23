@@ -1,0 +1,983 @@
+openapi: 3.0.3
+info:
+  title: SEAPP API
+  version: "1.1.0"
+  description: >
+    REST API for the SEAPP application. Manages Producers, their Fields (plantations),
+    yearly Production records, Issues, and binary assets (Files and Images).
+    All list endpoints are paginated, filterable and sortable. Timestamps are
+    ISO-8601 (Instant); dates are ISO-8601 (LocalDate). File and Image uploads use
+    multipart/form-data and return a presigned download URL.
+
+servers:
+  - url: /seappi
+    description: Application context path (server.servlet.context-path)
+
+tags:
+  - name: Producers
+  - name: Fields
+  - name: Productions
+  - name: Issues
+  - name: Files
+  - name: Images
+
+paths:
+  # ─────────────────────────────── PRODUCERS ───────────────────────────────
+  /producers:
+    post:
+      tags: [Producers]
+      summary: Create a producer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProducerDto"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProducerDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Producers]
+      summary: List / search producers (paginated)
+      parameters:
+        - { name: name, in: query, required: false, schema: { type: string } }
+        - {
+            name: surname,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - {
+            name: status,
+            in: query,
+            required: false,
+            schema: { $ref: "#/components/schemas/ProducerStatus" },
+          }
+        - {
+            name: taxIdentificationNumber,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - { name: phone, in: query, required: false, schema: { type: string } }
+        - { name: email, in: query, required: false, schema: { type: string } }
+        - {
+            name: representativeName,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - { name: region, in: query, required: false, schema: { type: string } }
+        - { name: notes, in: query, required: false, schema: { type: string } }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProducerSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_ProducerDto"
+
+  /producers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Producers]
+      summary: Get a producer by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProducerDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Producers]
+      summary: Update a producer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditProducerDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProducerDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────── FIELDS ─────────────────────────────────
+  /fields:
+    post:
+      tags: [Fields]
+      summary: Create a field
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFieldDto"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Fields]
+      summary: List / search fields (paginated)
+      parameters:
+        - {
+            name: producerId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: locationName,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - { name: region, in: query, required: false, schema: { type: string } }
+        - {
+            name: plantingMethod,
+            in: query,
+            required: false,
+            schema: { $ref: "#/components/schemas/PlantingMethod" },
+          }
+        - {
+            name: trainingShape,
+            in: query,
+            required: false,
+            schema: { $ref: "#/components/schemas/TrainingShape" },
+          }
+        - {
+            name: rootstock,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/FieldSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_FieldDto"
+
+  /fields/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Fields]
+      summary: Get a field by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Fields]
+      summary: Update a field
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditFieldDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FieldDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────── PRODUCTIONS ──────────────────────────────
+  /productions:
+    post:
+      tags: [Productions]
+      summary: Create a production record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductionDto"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Productions]
+      summary: List / search production records (paginated)
+      parameters:
+        - {
+            name: fieldId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - { name: year, in: query, required: false, schema: { type: integer } }
+        - {
+            name: isEstimation,
+            in: query,
+            required: false,
+            schema: { type: boolean },
+          }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProductionSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_ProductionDto"
+
+  /productions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Productions]
+      summary: Get a production record by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Productions]
+      summary: Update a production record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditProductionDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────── ISSUES ─────────────────────────────────
+  /issues:
+    post:
+      tags: [Issues]
+      summary: Create an issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIssueDto"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+    get:
+      tags: [Issues]
+      summary: List / search issues (paginated)
+      parameters:
+        - {
+            name: fieldId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - { name: title, in: query, required: false, schema: { type: string } }
+        - {
+            name: severity,
+            in: query,
+            required: false,
+            schema: { $ref: "#/components/schemas/IssueSeverity" },
+          }
+        - {
+            name: state,
+            in: query,
+            required: false,
+            schema: { $ref: "#/components/schemas/IssueState" },
+          }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/IssueSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_IssueDto"
+
+  /issues/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Issues]
+      summary: Get an issue by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Issues]
+      summary: Update an issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditIssueDto"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssueDto"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ───────────────────────────────── FILES ─────────────────────────────────
+  # Files support upload + read only (no update/delete endpoints).
+  /files:
+    post:
+      tags: [Files]
+      summary: Upload a file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                comments:
+                  type: string
+            encoding:
+              file:
+                contentType: application/octet-stream
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileDto"
+    get:
+      tags: [Files]
+      summary: List / search files (paginated)
+      parameters:
+        - {
+            name: originalFilename,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - {
+            name: contentType,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - {
+            name: comments,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/FileSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_FileDto"
+
+  /files/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Files]
+      summary: Get a file's metadata (with a presigned download URL) by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ──────────────────────────────── IMAGES ─────────────────────────────────
+  # Images support upload + read only (no update/delete endpoints).
+  /images:
+    post:
+      tags: [Images]
+      summary: Upload an image (optionally linked to a field, producer, or issue)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                fieldId:
+                  type: string
+                  format: uuid
+                producerId:
+                  type: string
+                  format: uuid
+                issueId:
+                  type: string
+                  format: uuid
+                category:
+                  type: string
+                notes:
+                  type: string
+            encoding:
+              file:
+                contentType: image/*
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageDto"
+    get:
+      tags: [Images]
+      summary: List / search images (paginated)
+      parameters:
+        - {
+            name: fieldId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: producerId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: issueId,
+            in: query,
+            required: false,
+            schema: { type: string, format: uuid },
+          }
+        - {
+            name: category,
+            in: query,
+            required: false,
+            schema: { type: string },
+          }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Direction"
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ImageSortField"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse_ImageDto"
+
+  /images/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      tags: [Images]
+      summary: Get an image's metadata (with a presigned download URL) by id
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageDto"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+# ─────────────────────────────── COMPONENTS ────────────────────────────────
+components:
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero-based page index (default 0)
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Page size (default 20)
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+    Direction:
+      name: direction
+      in: query
+      required: false
+      description: Sort direction (default ASC). Only applied when sortBy is provided.
+      schema:
+        type: string
+        enum: [ASC, DESC]
+        default: ASC
+
+  responses:
+    NotFound:
+      description: Entity not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Entity not found: <details>"
+    ValidationError:
+      description: Bean validation failure. Body is a map of fieldName -> error message.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+            example:
+              title: Title is required
+              severity: Severity is required
+
+  schemas:
+    # ── Enums ──
+    ProducerStatus:
+      type: string
+      enum: [LEAD, ACTIVE, INACTIVE]
+    ProducerSortField:
+      type: string
+      enum: [NAME, SURNAME, REGION, CREATED_AT, UPDATED_AT]
+    PlantingMethod:
+      type: string
+      enum: [PLANTING, GRAFTING, MIX]
+    TrainingShape:
+      type: string
+      enum: [FISHBONE, UMBRELLA, OTHER, MIX]
+    FieldSortField:
+      type: string
+      enum:
+        [
+          LOCATION_NAME,
+          REGION,
+          AREA,
+          TOTAL_TREES,
+          PLANTING_DATE,
+          CREATED_AT,
+          UPDATED_AT,
+        ]
+    ProductionSortField:
+      type: string
+      enum: [YEAR, TOTAL_TREES, IS_ESTIMATION, CREATED_AT, UPDATED_AT]
+    IssueSeverity:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    IssueState:
+      type: string
+      enum: [OPEN, IN_PROGRESS, CLOSED, OBSOLETE]
+    IssueSortField:
+      type: string
+      enum: [TITLE, SEVERITY, STATE, CREATED_AT, UPDATED_AT]
+    FileSortField:
+      type: string
+      enum:
+        [ORIGINAL_FILENAME, CONTENT_TYPE, SIZE_BYTES, CREATED_AT, UPDATED_AT]
+    ImageSortField:
+      type: string
+      enum: [SIZE_BYTES, CATEGORY, CREATED_AT, UPDATED_AT]
+
+    # ── Producer ──
+    CreateProducerDto:
+      type: object
+      required: [name, surname, status]
+      properties:
+        name: { type: string, description: Required, non-blank }
+        surname: { type: string, description: Required, non-blank }
+        status: { $ref: "#/components/schemas/ProducerStatus" }
+        taxIdentificationNumber: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        representativeName: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+    EditProducerDto:
+      description: Same shape as CreateProducerDto (full replacement).
+      allOf:
+        - $ref: "#/components/schemas/CreateProducerDto"
+    ProducerDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        surname: { type: string }
+        status: { $ref: "#/components/schemas/ProducerStatus" }
+        taxIdentificationNumber: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        representativeName: { type: string, nullable: true }
+        region: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── Field ──
+    CreateFieldDto:
+      type: object
+      required: [producerId, locationName]
+      properties:
+        producerId: { type: string, format: uuid, description: Required }
+        locationName: { type: string, description: Required, non-blank }
+        region: { type: string, nullable: true }
+        area: { type: number, format: double, nullable: true }
+        gpsCoordinates: { type: string, nullable: true }
+        comments: { type: string, nullable: true }
+        plantingDate: { type: string, format: date, nullable: true }
+        plantingMethod:
+          {
+            allOf: [{ $ref: "#/components/schemas/PlantingMethod" }],
+            nullable: true,
+          }
+        trainingShape:
+          {
+            allOf: [{ $ref: "#/components/schemas/TrainingShape" }],
+            nullable: true,
+          }
+        rootstock: { type: string, nullable: true }
+        spacing: { type: string, nullable: true }
+        maleCount: { type: integer, minimum: 0, default: 0 }
+        ac22Count: { type: integer, minimum: 0, default: 0 }
+        ac76Count: { type: integer, minimum: 0, default: 0 }
+    EditFieldDto:
+      description: Same shape as CreateFieldDto (full replacement).
+      allOf:
+        - $ref: "#/components/schemas/CreateFieldDto"
+    FieldDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        producerId: { type: string, format: uuid }
+        producerName:
+          {
+            type: string,
+            nullable: true,
+            description: Resolved from the Producer module,
+          }
+        locationName: { type: string }
+        region: { type: string, nullable: true }
+        area: { type: number, format: double, nullable: true }
+        gpsCoordinates: { type: string, nullable: true }
+        comments: { type: string, nullable: true }
+        plantingDate: { type: string, format: date, nullable: true }
+        plantingMethod:
+          {
+            allOf: [{ $ref: "#/components/schemas/PlantingMethod" }],
+            nullable: true,
+          }
+        trainingShape:
+          {
+            allOf: [{ $ref: "#/components/schemas/TrainingShape" }],
+            nullable: true,
+          }
+        rootstock: { type: string, nullable: true }
+        spacing: { type: string, nullable: true }
+        maleCount: { type: integer }
+        ac22Count: { type: integer }
+        ac76Count: { type: integer }
+        totalTrees:
+          {
+            type: integer,
+            description: Derived (maleCount + ac22Count + ac76Count),
+          }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── Production ──
+    CreateProductionDto:
+      type: object
+      required: [fieldId, year]
+      properties:
+        fieldId: { type: string, format: uuid, description: Required }
+        year: { type: integer, minimum: 1900, maximum: 2100 }
+        ac22Kg:
+          {
+            type: integer,
+            minimum: 0,
+            default: 0,
+            description: AC22 yield in kilograms,
+          }
+        ac76Kg:
+          {
+            type: integer,
+            minimum: 0,
+            default: 0,
+            description: AC76 yield in kilograms,
+          }
+        isEstimation:
+          {
+            type: boolean,
+            default: false,
+            description: Whether the figures are an estimate rather than actuals,
+          }
+    EditProductionDto:
+      description: Same shape as CreateProductionDto (full replacement).
+      allOf:
+        - $ref: "#/components/schemas/CreateProductionDto"
+    ProductionDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fieldId: { type: string, format: uuid }
+        year: { type: integer }
+        ac22Kg: { type: integer, description: AC22 yield in kilograms }
+        ac76Kg: { type: integer, description: AC76 yield in kilograms }
+        totalTrees:
+          {
+            type: integer,
+            description: Derived tree count carried from the field,
+          }
+        isEstimation: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── Issue ──
+    CreateIssueDto:
+      type: object
+      required: [title, severity, state]
+      properties:
+        fieldId:
+          {
+            type: string,
+            format: uuid,
+            nullable: true,
+            description: Optional field this issue relates to,
+          }
+        title: { type: string, description: Required, non-blank }
+        description: { type: string, nullable: true }
+        severity: { $ref: "#/components/schemas/IssueSeverity" }
+        state: { $ref: "#/components/schemas/IssueState" }
+    EditIssueDto:
+      description: Same shape as CreateIssueDto (full replacement).
+      allOf:
+        - $ref: "#/components/schemas/CreateIssueDto"
+    IssueDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fieldId: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        severity: { $ref: "#/components/schemas/IssueSeverity" }
+        state: { $ref: "#/components/schemas/IssueState" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── File ──
+    FileDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        originalFilename: { type: string }
+        comments: { type: string, nullable: true }
+        url:
+          { type: string, description: Presigned download URL (time-limited) }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── Image ──
+    ImageDto:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fieldId: { type: string, format: uuid, nullable: true }
+        producerId: { type: string, format: uuid, nullable: true }
+        issueId: { type: string, format: uuid, nullable: true }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        originalFilename: { type: string }
+        category: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        url:
+          { type: string, description: Presigned download URL (time-limited) }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    # ── Paged wrappers ──
+    PagedResponseMeta:
+      type: object
+      properties:
+        page: { type: integer, description: Current zero-based page index }
+        size: { type: integer, description: Page size }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    PagedResponse_ProducerDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/ProducerDto" }
+    PagedResponse_FieldDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/FieldDto" }
+    PagedResponse_ProductionDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/ProductionDto" }
+    PagedResponse_IssueDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/IssueDto" }
+    PagedResponse_FileDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/FileDto" }
+    PagedResponse_ImageDto:
+      allOf:
+        - $ref: "#/components/schemas/PagedResponseMeta"
+        - type: object
+          properties:
+            content:
+              type: array
+              items: { $ref: "#/components/schemas/ImageDto" }
