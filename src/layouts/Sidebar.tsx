@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   FiUsers,
   FiMap,
@@ -9,8 +8,6 @@ import {
   FiCamera,
   FiAlertTriangle,
   FiHome,
-  FiChevronDown,
-  FiChevronRight,
   FiLogOut,
 } from "react-icons/fi";
 import { cn } from "@/lib/utils";
@@ -19,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 const SHOW_FINANCIALS = import.meta.env.VITE_SHOW_FINANCIALS === "true";
 
 const navigation = [
+  { name: "Παραγωγοί", to: "/producers", icon: FiUsers },
   { name: "Χωράφια", to: "/fields", icon: FiMap },
   { name: "Φυτεύσεις", to: "/plantings", icon: FiGrid },
   { name: "Παραγωγή", to: "/production", icon: FiBarChart2 },
@@ -29,34 +27,13 @@ const navigation = [
   { name: "Προβλήματα", to: "/field-issues", icon: FiAlertTriangle },
 ];
 
-const producerStatuses = [
-  { label: "Ενεργός", value: "ACTIVE", to: "/producers?status=ACTIVE" },
-  {
-    label: "Ανενεργός",
-    value: "INACTIVE",
-    to: "/producers?status=INACTIVE",
-  },
-  { label: "Lead", value: "LEAD", to: "/producers?status=LEAD" },
-];
-
 interface SidebarProps {
   /** Called when a navigation link is followed — used to close the mobile drawer. */
   onNavigate?: () => void;
 }
 
 export function Sidebar({ onNavigate }: SidebarProps) {
-  const location = useLocation();
   const { user, logout } = useAuth();
-  const isOnProducers = location.pathname.startsWith("/producers");
-  const [producersOpen, setProducersOpen] = useState(isOnProducers);
-
-  useEffect(() => {
-    if (isOnProducers) {
-      setProducersOpen(true);
-    }
-  }, [isOnProducers]);
-
-  const currentStatus = new URLSearchParams(location.search).get("status");
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
@@ -87,50 +64,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <FiHome className="h-5 w-5 shrink-0" />
           Dashboard
         </NavLink>
-
-        {/* Παραγωγοί — expandable */}
-        <div>
-          <button
-            onClick={() => setProducersOpen((prev) => !prev)}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              isOnProducers
-                ? "bg-brand-50 text-brand-700"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-            )}
-          >
-            <FiUsers className="h-5 w-5 shrink-0" />
-            <span className="flex-1 text-left">Παραγωγοί</span>
-            {producersOpen ? (
-              <FiChevronDown className="h-4 w-4" />
-            ) : (
-              <FiChevronRight className="h-4 w-4" />
-            )}
-          </button>
-
-          {producersOpen && (
-            <div className="ml-8 mt-1 space-y-1">
-              {producerStatuses.map((s) => {
-                const isActive = isOnProducers && currentStatus === s.value;
-                return (
-                  <NavLink
-                    key={s.value}
-                    to={s.to}
-                    onClick={onNavigate}
-                    className={cn(
-                      "flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-brand-50 text-brand-700"
-                        : "text-gray-500 hover:bg-gray-100 hover:text-gray-900",
-                    )}
-                  >
-                    {s.label}
-                  </NavLink>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
         {navigation.map((item) => (
           <NavLink

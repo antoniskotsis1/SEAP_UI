@@ -1,36 +1,78 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
-import { LoginPage } from "@/pages/LoginPage";
 import { RequireAuth } from "@/components/RequireAuth";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { ProducersListPage } from "@/pages/producers/ProducersListPage";
-import { FieldsListPage } from "@/pages/fields/FieldsListPage";
-import { PlantingsListPage } from "@/pages/plantings/PlantingsListPage";
-import { ProductionListPage } from "@/pages/production/ProductionListPage";
-import { FinancialsListPage } from "@/pages/financials/FinancialsListPage";
-import { FieldPhotosListPage } from "@/pages/field-photos/FieldPhotosListPage";
-import { FieldIssuesListPage } from "@/pages/field-issues/FieldIssuesListPage";
+import { PageFallback } from "@/components/ui/PageFallback";
 
-export const router = createBrowserRouter([
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    element: (
-      <RequireAuth>
-        <AppLayout />
-      </RequireAuth>
-    ),
-    children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "producers", element: <ProducersListPage /> },
-      { path: "fields", element: <FieldsListPage /> },
-      { path: "plantings", element: <PlantingsListPage /> },
-      { path: "production", element: <ProductionListPage /> },
-      { path: "financials", element: <FinancialsListPage /> },
-      { path: "field-photos", element: <FieldPhotosListPage /> },
-      { path: "field-issues", element: <FieldIssuesListPage /> },
-    ],
-  },
-]);
+const LoginPage = lazy(() =>
+  import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage })),
+);
+const DashboardPage = lazy(() =>
+  import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+);
+const ProducersListPage = lazy(() =>
+  import("@/pages/producers/ProducersListPage").then((m) => ({
+    default: m.ProducersListPage,
+  })),
+);
+const FieldsListPage = lazy(() =>
+  import("@/pages/fields/FieldsListPage").then((m) => ({
+    default: m.FieldsListPage,
+  })),
+);
+const PlantingsListPage = lazy(() =>
+  import("@/pages/plantings/PlantingsListPage").then((m) => ({
+    default: m.PlantingsListPage,
+  })),
+);
+const ProductionListPage = lazy(() =>
+  import("@/pages/production/ProductionListPage").then((m) => ({
+    default: m.ProductionListPage,
+  })),
+);
+const FinancialsListPage = lazy(() =>
+  import("@/pages/financials/FinancialsListPage").then((m) => ({
+    default: m.FinancialsListPage,
+  })),
+);
+const FieldPhotosListPage = lazy(() =>
+  import("@/pages/field-photos/FieldPhotosListPage").then((m) => ({
+    default: m.FieldPhotosListPage,
+  })),
+);
+const FieldIssuesListPage = lazy(() =>
+  import("@/pages/field-issues/FieldIssuesListPage").then((m) => ({
+    default: m.FieldIssuesListPage,
+  })),
+);
+
+const lazyRoute = (element: ReactNode) => (
+  <Suspense fallback={<PageFallback />}>{element}</Suspense>
+);
+
+export const router = createBrowserRouter(
+  [
+    {
+      path: "/login",
+      element: lazyRoute(<LoginPage />),
+    },
+    {
+      element: (
+        <RequireAuth>
+          <AppLayout />
+        </RequireAuth>
+      ),
+      children: [
+        { index: true, element: lazyRoute(<DashboardPage />) },
+        { path: "producers", element: lazyRoute(<ProducersListPage />) },
+        { path: "fields", element: lazyRoute(<FieldsListPage />) },
+        { path: "plantings", element: lazyRoute(<PlantingsListPage />) },
+        { path: "production", element: lazyRoute(<ProductionListPage />) },
+        { path: "financials", element: lazyRoute(<FinancialsListPage />) },
+        { path: "field-photos", element: lazyRoute(<FieldPhotosListPage />) },
+        { path: "field-issues", element: lazyRoute(<FieldIssuesListPage />) },
+      ],
+    },
+  ],
+  { basename: "/SEAP_UI" },
+);

@@ -4,9 +4,20 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
+  base: "/SEAP_UI/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "ui-vendor": ["react-aria-components", "react-hot-toast"],
+        },
+      },
     },
   },
   server: {

@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { FiUsers, FiPlus } from "react-icons/fi";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -8,7 +7,18 @@ import { DataTable, type Column } from "@/components/tables/DataTable";
 import { ProducerDetailModal } from "@/components/entities/ProducerDetailModal";
 import { ProducerFormModal } from "@/components/entities/ProducerFormModal";
 import { useTableQuery } from "@/hooks/useTableQuery";
+import { cn } from "@/lib/utils";
 import type { Producer, ProducerListItem } from "@/types";
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+type TabKey = "ACTIVE" | "INACTIVE" | "LEAD";
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: "ACTIVE", label: "Ενεργός" },
+  { key: "INACTIVE", label: "Ανενεργός" },
+  { key: "LEAD", label: "Lead" },
+];
 
 // ─── Column definitions ─────────────────────────────────────────────────────
 
@@ -50,19 +60,19 @@ const columns: Column<ProducerListItem>[] = [
 // ─── Page component ─────────────────────────────────────────────────────────
 
 export function ProducersListPage() {
-  const [searchParams] = useSearchParams();
-  const urlStatus = searchParams.get("status") ?? "";
+  const [tab, setTab] = useState<TabKey>("ACTIVE");
 
   const table = useTableQuery<ProducerListItem>({
     endpoint: "/producers",
     defaultSortBy: "display_name",
-    defaultFilters: urlStatus ? { status: urlStatus } : {},
+    defaultFilters: { status: tab },
   });
 
   const { setFilter } = table;
-  useEffect(() => {
-    setFilter("status", urlStatus);
-  }, [urlStatus, setFilter]);
+  const onTabChange = (key: TabKey) => {
+    setTab(key);
+    setFilter("status", key);
+  };
 
   // ── Create / edit form modal ────────────────────────────────────────────
   // `formOpen` toggles the dialog; `editing` is the producer being edited
@@ -73,11 +83,7 @@ export function ProducersListPage() {
   // ── Detail modal ────────────────────────────────────────────────────────
   const [detailProducer, setDetailProducer] = useState<Producer | null>(null);
 
-  const isEmpty =
-    !table.isLoading &&
-    table.total === 0 &&
-    !table.search &&
-    Object.keys(table.filters).length === 0;
+  const isEmpty = !table.isLoading && table.total === 0 && !table.search;
 
   const openCreate = () => {
     setEditing(null);
@@ -94,7 +100,7 @@ export function ProducersListPage() {
     <>
       <PageHeader
         title="Παραγωγοί"
-        description="Διαχείριση παραγωγών και επιχειρήσεων"
+        description="Διαχείριση παραγωγών"
         actions={
           <Button onPress={openCreate}>
             <FiPlus className="h-4 w-4" />
@@ -102,6 +108,28 @@ export function ProducersListPage() {
           </Button>
         }
       />
+
+      {/* ── Tab bar ─────────────────────────────────────────────────────────── */}
+      <div className="mb-5 border-b border-gray-200">
+        <nav className="-mb-px flex gap-6" aria-label="Κατάσταση παραγωγών">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onTabChange(t.key)}
+              className={cn(
+                "border-b-2 px-1 pb-3 text-sm font-medium transition-colors",
+                tab === t.key
+                  ? "border-brand-600 text-brand-700"
+                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
+              )}
+              aria-current={tab === t.key ? "page" : undefined}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {isEmpty ? (
         <EmptyState
