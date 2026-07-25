@@ -1,28 +1,27 @@
 import { useState, useEffect } from "react";
-import { FiUpload, FiX } from "react-icons/fi";
+import { FiUpload, FiX, FiAlertTriangle } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { FormModal } from "@/components/ui/FormModal";
+import { ModalTitle } from "@/components/ui/ModalTitle";
 import { TextField } from "@/components/ui/TextField";
 import { TextAreaField } from "@/components/ui/TextAreaField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Button } from "@/components/ui/Button";
-import { api } from "@/lib/api";
-import { severityLabel, issueStatusLabel } from "@/lib/labels";
+import { fieldsApi, issuesApi, imagesApi } from "@/lib/services";
+import { toField } from "@/lib/adapters";
+import { severityLabel, issueStateLabel, ISSUE_STATE_ORDER } from "@/lib/labels";
 import type {
-  Field,
-  FieldIssue,
-  FieldPhoto,
+  CreateIssueDto,
+  IssueDto,
   IssueSeverity,
-  IssueStatus,
-} from "@/types";
-
-/** An issue row may carry the joined URL of its originating photo, when it has one. */
-type EditableIssue = FieldIssue & { photo_url?: string };
+  IssueState,
+} from "@/types/api";
+import type { Field } from "@/types";
 
 interface FieldIssueFormModalProps {
   open: boolean;
-  /** When provided, the dialog edits this issue (PATCH); otherwise creates one (POST). */
-  issue?: EditableIssue | null;
+  /** When provided, the dialog edits this issue (PUT); otherwise creates one (POST). */
+  issue?: IssueDto | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -32,29 +31,24 @@ type IssueForm = {
   title: string;
   description: string;
   severity: IssueSeverity;
-  status: IssueStatus;
-  reported_at: string;
+  state: IssueState;
 };
-
-const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyForm: IssueForm = {
   field_id: "",
   title: "",
   description: "",
   severity: "MEDIUM",
-  status: "OPEN",
-  reported_at: today(),
+  state: "OPEN",
 };
 
 const SEVERITIES: IssueSeverity[] = ["LOW", "MEDIUM", "HIGH"];
-const STATUSES: IssueStatus[] = ["OPEN", "RESOLVED"];
 
 /**
  * Create/edit dialog for a field issue reported from the issues page. A photo is
- * **optional**: attach one and it is created and linked (`photo_id`); leave it
- * empty and the issue stands alone. Pass an `issue` to edit it (PATCH), or omit
- * it to create (POST).
+ * **optional**: attach one and it is uploaded and linked to the issue
+ * (`issueId`); leave it empty and the issue stands alone. Pass an `issue` to
+ * edit it (PUT), or omit it to create (POST).
  */
 export function FieldIssueFormModal({
   open,
@@ -67,18 +61,17 @@ export function FieldIssueFormModal({
   const [fields, setFields] = useState<Field[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Optional photo. `photoUrl` is the current preview (existing URL or freshly
-  // read data URL); `photoDirty` marks a newly-attached photo that needs a
-  // FieldPhoto record created on save.
+  // Optional photo. `photoUrl` is the preview (existing linked image URL or a
+  // freshly read data URL); `photoFile` is a newly attached file to upload.
   const [photoUrl, setPhotoUrl] = useState("");
   const [photoName, setPhotoName] = useState("");
-  const [photoDirty, setPhotoDirty] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   // Fields for the field dropdown.
   useEffect(() => {
-    api
-      .list<Field>("/fields", { page_size: 1000, sort_by: "location_name" })
-      .then((r) => setFields(r.data))
+    fieldsApi
+      .list({ size: 1000, sortBy: "LOCATION_NAME" })
+      .then((r) => setFields(r.content.map(toField)))
       .catch(() => setFields([]));
   }, []);
 
@@ -88,18 +81,26 @@ export function FieldIssueFormModal({
     setForm(
       issue
         ? {
-            field_id: issue.field_id,
+            field_id: issue.fieldId ?? "",
             title: issue.title,
-            description: issue.description,
+            description: issue.description ?? "",
             severity: issue.severity,
-            status: issue.status,
-            reported_at: issue.reported_at?.slice(0, 10) || today(),
+            state: issue.state,
           }
         : emptyForm,
     );
-    setPhotoUrl(issue?.photo_url ?? "");
+    setPhotoUrl("");
     setPhotoName("");
-    setPhotoDirty(false);
+    setPhotoFile(null);
+    // Preview the first image already linked to this issue (read-only).
+    if (issue) {
+      imagesApi
+        .list({ issueId: issue.id, size: 1 })
+        .then((r) => {
+          if (r.content[0]) setPhotoUrl(r.content[0].url);
+        })
+        .catch(() => {});
+    }
   }, [open, issue]);
 
   const set = <K extends keyof IssueForm>(key: K, value: IssueForm[K]) =>
@@ -116,7 +117,7 @@ export function FieldIssueFormModal({
     reader.onload = () => {
       setPhotoUrl(reader.result as string);
       setPhotoName(file.name);
-      setPhotoDirty(true);
+      setPhotoFile(file);
     };
     reader.readAsDataURL(file);
   };
@@ -124,7 +125,7 @@ export function FieldIssueFormModal({
   const clearPhoto = () => {
     setPhotoUrl("");
     setPhotoName("");
-    setPhotoDirty(false);
+    setPhotoFile(null);
   };
 
   const handleSubmit = async () => {
@@ -139,40 +140,29 @@ export function FieldIssueFormModal({
 
     setSaving(true);
     try {
-      // Resolve the (optional) photo link:
-      //  • new photo attached  → create a FieldPhoto, link its id
-      //  • preview cleared      → null (unlink)
-      //  • unchanged existing   → undefined (leave as-is)
-      let photo_id: string | null | undefined;
-      if (photoDirty && photoUrl) {
-        const photo = await api.post<FieldPhoto>("/field-photos", {
-          field_id: form.field_id,
-          url: photoUrl,
-          category: "OTHER",
-          taken_at: form.reported_at,
-        });
-        photo_id = photo.id;
-      } else if (!photoUrl) {
-        photo_id = isEdit ? null : undefined;
-      }
-
-      const payload = {
-        field_id: form.field_id,
-        title: form.title,
-        description: form.description,
+      const payload: CreateIssueDto = {
+        fieldId: form.field_id,
+        title: form.title.trim(),
+        description: form.description.trim() || null,
         severity: form.severity,
-        status: form.status,
-        reported_at: form.reported_at,
-        ...(photo_id !== undefined ? { photo_id } : {}),
+        state: form.state,
       };
 
-      if (isEdit) {
-        await api.patch(`/field-issues/${issue.id}`, payload);
-        toast.success("Το πρόβλημα ενημερώθηκε");
-      } else {
-        await api.post("/field-issues", payload);
-        toast.success("Το πρόβλημα καταχωρήθηκε");
+      const saved = isEdit
+        ? await issuesApi.update(issue.id, payload)
+        : await issuesApi.create(payload);
+
+      // A newly attached photo is uploaded and linked to the (saved) issue.
+      // The API accepts exactly one owner link, so send only `issueId` (the
+      // issue already carries the field).
+      if (photoFile) {
+        await imagesApi.upload(photoFile, {
+          issueId: saved.id,
+          category: "OTHER",
+        });
       }
+
+      toast.success(isEdit ? "Το πρόβλημα ενημερώθηκε" : "Το πρόβλημα καταχωρήθηκε");
       onSaved();
       onClose();
     } catch {
@@ -186,7 +176,12 @@ export function FieldIssueFormModal({
     <FormModal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Επεξεργασία Προβλήματος" : "Νέα Αναφορά Προβλήματος"}
+      title={
+        <ModalTitle
+          icon={<FiAlertTriangle className="h-5 w-5" />}
+          title={isEdit ? "Επεξεργασία Προβλήματος" : "Νέα Αναφορά Προβλήματος"}
+        />
+      }
       onSubmit={handleSubmit}
       saving={saving}
       submitLabel={isEdit ? "Αποθήκευση" : "Δημιουργία"}
@@ -201,7 +196,8 @@ export function FieldIssueFormModal({
           <option value="">— Επιλέξτε χωράφι —</option>
           {fields.map((f) => (
             <option key={f.id} value={f.id}>
-              {f.location_name} — {f.producer_name}
+              {f.location_name}
+              {f.producer_name ? ` — ${f.producer_name}` : ""}
             </option>
           ))}
         </SelectField>
@@ -235,23 +231,16 @@ export function FieldIssueFormModal({
           </SelectField>
           <SelectField
             label="Κατάσταση"
-            value={form.status}
-            onChange={(e) => set("status", e.target.value as IssueStatus)}
+            value={form.state}
+            onChange={(e) => set("state", e.target.value as IssueState)}
           >
-            {STATUSES.map((s) => (
+            {ISSUE_STATE_ORDER.map((s) => (
               <option key={s} value={s}>
-                {issueStatusLabel[s]}
+                {issueStateLabel[s]}
               </option>
             ))}
           </SelectField>
         </div>
-
-        <TextField
-          label="Ημ. Αναφοράς"
-          value={form.reported_at}
-          onChange={(v) => set("reported_at", v)}
-          inputProps={{ type: "date" }}
-        />
 
         {/* Optional photo — attach one to document the problem, or leave empty. */}
         <div>
@@ -266,9 +255,15 @@ export function FieldIssueFormModal({
               <span className="min-w-0 flex-1 truncate text-sm text-gray-600">
                 {photoName || photoUrl}
               </span>
-              <Button variant="ghost" onPress={clearPhoto} className="text-gray-500">
-                <FiX className="h-4 w-4" />
-              </Button>
+              {photoFile && (
+                <Button
+                  variant="ghost"
+                  onPress={clearPhoto}
+                  className="text-gray-500"
+                >
+                  <FiX className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ) : (
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-4 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600">

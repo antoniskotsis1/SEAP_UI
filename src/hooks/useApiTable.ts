@@ -1,22 +1,36 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { api } from "@/lib/api";
-import type { SortDirection, TableQueryParams } from "@/types";
+import { seappApi } from "@/lib/api";
+import type { SortDirection } from "@/types";
 
-interface UseTableQueryOptions {
+/**
+ * Table-state hook for the SEAPP API. Exposes the shape `DataTable` expects,
+ * and speaks the backend contract: zero-based `page`, `size`, `direction`
+ * (ASC/DESC), enum `sortBy`, and the `PagedResponse` envelope. DTOs are mapped
+ * to internal models via `adapt` at the boundary.
+ *
+ * The API has no free-text search endpoint, so the search box is wired to a
+ * single string filter (`searchFilterKey`, e.g. `name` / `locationName`).
+ */
+interface UseApiTableOptions<TDto, TItem> {
+  /** Resource path under the API base, e.g. "/producers". */
   endpoint: string;
+  /** Map one API DTO to the internal model the table renders. */
+  adapt: (dto: TDto) => TItem;
+  /** Column key → API `sortBy` enum. Columns absent here aren't server-sortable. */
+  sortColumnMap?: Record<string, string>;
+  /** Filter param this table's search box maps to (server-side substring filter). */
+  searchFilterKey?: string;
   defaultPageSize?: number;
+  /** Initial sort column key (must exist in `sortColumnMap`). */
   defaultSortBy?: string;
   defaultSortDir?: SortDirection;
   debounceMs?: number;
   defaultFilters?: Record<string, string>;
-  /**
-   * Query params always sent with every request and never cleared by
-   * `clearFilters` — for fixed constraints like a tab's `is_estimate` flag.
-   */
-  staticParams?: Record<string, string>;
+  /** Params always sent and never cleared by `clearFilters`. */
+  staticParams?: Record<string, string | number>;
 }
 
-interface UseTableQueryReturn<T> {
+interface UseApiTableReturn<T> {
   data: T[];
   total: number;
   page: number;
@@ -24,34 +38,32 @@ interface UseTableQueryReturn<T> {
   isLoading: boolean;
   error: string | null;
 
-  // Search
   search: string;
   setSearch: (value: string) => void;
 
-  // Sort
   sortBy: string | null;
   sortDir: SortDirection;
   toggleSort: (columnKey: string) => void;
 
-  // Filters
   filters: Record<string, string>;
   setFilter: (key: string, value: string) => void;
   clearFilters: () => void;
 
-  // Pagination
   setPage: (page: number) => void;
   setPageSize: (size: number) => void;
   totalPages: number;
 
-  // Manual
   refetch: () => void;
 }
 
-export function useTableQuery<T>(
-  options: UseTableQueryOptions
-): UseTableQueryReturn<T> {
+export function useApiTable<TDto, TItem>(
+  options: UseApiTableOptions<TDto, TItem>
+): UseApiTableReturn<TItem> {
   const {
     endpoint,
+    adapt,
+    sortColumnMap,
+    searchFilterKey,
     defaultPageSize = 50,
     defaultSortBy,
     defaultSortDir = "asc",
@@ -60,13 +72,15 @@ export function useTableQuery<T>(
     staticParams,
   } = options;
 
-  // Stable key so an inline `staticParams` object literal doesn't re-trigger fetches.
+  // Stable keys so inline object literals don't re-trigger fetches.
   const staticParamsKey = JSON.stringify(staticParams ?? {});
+  const sortMapKey = JSON.stringify(sortColumnMap ?? {});
 
-  const [data, setData] = useState<T[]>([]);
+  const [data, setData] = useState<TItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(1); // 1-based for DataTable; sent 0-based
   const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,11 +88,14 @@ export function useTableQuery<T>(
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState<string | null>(defaultSortBy ?? null);
   const [sortDir, setSortDir] = useState<SortDirection>(defaultSortDir);
-  const [filters, setFilters] = useState<Record<string, string>>(defaultFilters ?? {});
+  const [filters, setFilters] = useState<Record<string, string>>(
+    defaultFilters ?? {}
+  );
 
   const abortRef = useRef<AbortController | null>(null);
+  const adaptRef = useRef(adapt);
+  adaptRef.current = adapt;
 
-  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -87,9 +104,7 @@ export function useTableQuery<T>(
     return () => clearTimeout(timer);
   }, [search, debounceMs]);
 
-  const setSearch = useCallback((value: string) => {
-    setSearchRaw(value);
-  }, []);
+  const setSearch = useCallback((value: string) => setSearchRaw(value), []);
 
   const toggleSort = useCallback(
     (columnKey: string) => {
@@ -130,47 +145,57 @@ export function useTableQuery<T>(
     setIsLoading(true);
     setError(null);
 
-    const params: TableQueryParams = {
-      page,
-      page_size: pageSize,
-      ...(JSON.parse(staticParamsKey) as Record<string, string>),
+    const sortMap = JSON.parse(sortMapKey) as Record<string, string>;
+    const params: Record<string, string | number> = {
+      page: page - 1, // API is zero-based
+      size: pageSize,
+      ...(JSON.parse(staticParamsKey) as Record<string, string | number>),
       ...filters,
     };
-    if (debouncedSearch) params.search = debouncedSearch;
-    if (sortBy) {
-      params.sort_by = sortBy;
-      params.sort_dir = sortDir;
+    if (searchFilterKey && debouncedSearch) {
+      params[searchFilterKey] = debouncedSearch;
     }
-
-    // Build clean param record for api.list
-    const cleanParams: Record<string, string | number> = {};
-    for (const [k, v] of Object.entries(params)) {
-      if (v !== undefined && v !== "") cleanParams[k] = v;
+    const apiSortField = sortBy ? sortMap[sortBy] : undefined;
+    if (apiSortField) {
+      params.sortBy = apiSortField;
+      params.direction = sortDir === "asc" ? "ASC" : "DESC";
     }
 
     try {
-      const result = await api.list<T>(endpoint, cleanParams);
+      const result = await seappApi.getPaged<TDto>(endpoint, params);
       if (!controller.signal.aborted) {
-        setData(result.data);
-        setTotal(result.total);
+        setData(result.content.map((dto) => adaptRef.current(dto)));
+        setTotal(result.totalElements);
+        setTotalPages(Math.max(1, result.totalPages));
       }
     } catch (err) {
       if (!controller.signal.aborted) {
-        setError(err instanceof Error ? err.message : "Fetch failed");
+        const message =
+          err && typeof err === "object" && "message" in err
+            ? String((err as { message: unknown }).message)
+            : "Fetch failed";
+        setError(message);
       }
     } finally {
-      if (!controller.signal.aborted) {
-        setIsLoading(false);
-      }
+      if (!controller.signal.aborted) setIsLoading(false);
     }
-  }, [endpoint, page, pageSize, debouncedSearch, sortBy, sortDir, filters, staticParamsKey]);
+  }, [
+    endpoint,
+    page,
+    pageSize,
+    debouncedSearch,
+    searchFilterKey,
+    sortBy,
+    sortDir,
+    filters,
+    staticParamsKey,
+    sortMapKey,
+  ]);
 
   useEffect(() => {
     fetchData();
     return () => abortRef.current?.abort();
   }, [fetchData]);
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return {
     data,

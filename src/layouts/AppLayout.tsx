@@ -62,10 +62,14 @@ export function AppLayout() {
             <FiMenu className="h-5 w-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold-500 text-xs font-bold text-white">
-              AG
-            </div>
-            <span className="text-sm font-semibold text-gray-900">Arta Gold</span>
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="Arta Gold"
+              className="h-12 w-12 object-contain p-1"
+            />
+            <span className="text-sm font-semibold text-gray-900">
+              Arta Gold
+            </span>
           </div>
         </header>
 

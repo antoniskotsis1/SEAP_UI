@@ -15,13 +15,16 @@ import { useAuth } from "@/lib/auth-context";
 
 const SHOW_FINANCIALS = import.meta.env.VITE_SHOW_FINANCIALS === "true";
 
+// `soon: true` marks features whose backend is not implemented yet — they render
+// a "coming soon" placeholder and are flagged with a badge in the nav.
 const navigation = [
+  { name: "Dashboard", to: "/dashboard", icon: FiHome, soon: true },
   { name: "Παραγωγοί", to: "/producers", icon: FiUsers },
   { name: "Χωράφια", to: "/fields", icon: FiMap },
   { name: "Φυτεύσεις", to: "/plantings", icon: FiGrid },
   { name: "Παραγωγή", to: "/production", icon: FiBarChart2 },
   ...(SHOW_FINANCIALS
-    ? [{ name: "Οικονομικά", to: "/financials", icon: FiDollarSign }]
+    ? [{ name: "Οικονομικά", to: "/financials", icon: FiDollarSign, soon: true }]
     : []),
   { name: "Φωτογραφίες", to: "/field-photos", icon: FiCamera },
   { name: "Προβλήματα", to: "/field-issues", icon: FiAlertTriangle },
@@ -37,10 +40,12 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
-      <div className="flex h-16 items-center gap-3 border-b border-gray-200 px-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-500 text-sm font-bold text-white">
-          AG
-        </div>
+      <div className="flex h-16 items-center gap-3 border-b border-gray-200 px-4">
+        <img
+          src={`${import.meta.env.BASE_URL}logo.png`}
+          alt="Arta Gold"
+          className="h-11 w-11 shrink-0 object-contain"
+        />
         <div>
           <p className="text-sm font-semibold text-gray-900">Arta Gold</p>
           <p className="text-xs text-gray-500">SEAPP</p>
@@ -48,28 +53,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
-        <NavLink
-          to="/"
-          end
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-brand-50 text-brand-700"
-                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-            )
-          }
-        >
-          <FiHome className="h-5 w-5 shrink-0" />
-          Dashboard
-        </NavLink>
-
         {navigation.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
-            end={item.to === "/"}
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
@@ -81,7 +68,12 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             }
           >
             <item.icon className="h-5 w-5 shrink-0" />
-            {item.name}
+            <span className="flex-1">{item.name}</span>
+            {item.soon && (
+              <span className="rounded-full bg-gold-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold-700">
+                Σύντομα
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

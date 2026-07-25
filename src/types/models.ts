@@ -25,6 +25,13 @@ export type PhotoCategory =
 export interface Producer {
   id: string;
   display_name: string;
+  /**
+   * Split name parts as returned by the real API. Present when the producer was
+   * sourced from the backend; used to round-trip create/update. `display_name`
+   * remains the canonical display value (`name + surname`).
+   */
+  name?: string;
+  surname?: string;
   status: ProducerStatus;
   afm?: string;
   phone?: string;

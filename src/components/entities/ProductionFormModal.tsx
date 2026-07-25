@@ -3,7 +3,11 @@ import toast from "react-hot-toast";
 import { FormModal } from "@/components/ui/FormModal";
 import { TextField } from "@/components/ui/TextField";
 import { SelectField } from "@/components/ui/SelectField";
-import { api } from "@/lib/api";
+import { ModalTitle } from "@/components/ui/ModalTitle";
+import { FiBarChart2 } from "react-icons/fi";
+import { fieldsApi, productionsApi } from "@/lib/services";
+import { toField } from "@/lib/adapters";
+import type { CreateProductionDto } from "@/types/api";
 import type { Field, ProductionRecord } from "@/types";
 
 interface ProductionFormModalProps {
@@ -56,9 +60,9 @@ export function ProductionFormModal({
 
   // Fields for the field dropdown.
   useEffect(() => {
-    api
-      .list<Field>("/fields", { page_size: 1000, sort_by: "location_name" })
-      .then((r) => setFields(r.data))
+    fieldsApi
+      .list({ size: 1000, sortBy: "LOCATION_NAME" })
+      .then((r) => setFields(r.content.map(toField)))
       .catch(() => setFields([]));
   }, []);
 
@@ -79,20 +83,20 @@ export function ProductionFormModal({
       toast.error("Το έτος είναι υποχρεωτικό");
       return;
     }
-    const payload = {
-      field_id: form.field_id,
-      harvest_year: Number(form.harvest_year),
-      ac22_kg: form.ac22_kg ? Number(form.ac22_kg) : 0,
-      ac76_kg: form.ac76_kg ? Number(form.ac76_kg) : 0,
-      is_estimate: isEstimate,
+    const payload: CreateProductionDto = {
+      fieldId: form.field_id,
+      year: Number(form.harvest_year),
+      ac22Kg: form.ac22_kg ? Number(form.ac22_kg) : 0,
+      ac76Kg: form.ac76_kg ? Number(form.ac76_kg) : 0,
+      isEstimation: isEstimate,
     };
     setSaving(true);
     try {
       if (isEdit) {
-        await api.patch(`/production/${record.id}`, payload);
+        await productionsApi.update(record.id, payload);
         toast.success("Η καταγραφή ενημερώθηκε");
       } else {
-        await api.post("/production", payload);
+        await productionsApi.create(payload);
         toast.success("Η καταγραφή δημιουργήθηκε");
       }
       onSaved();
@@ -111,9 +115,14 @@ export function ProductionFormModal({
       open={open}
       onClose={onClose}
       title={
-        isEdit
-          ? `Επεξεργασία ${noun === "Εκτίμηση" ? "Εκτίμησης" : "Καταγραφής"}`
-          : `Νέα ${noun}`
+        <ModalTitle
+          icon={<FiBarChart2 className="h-5 w-5" />}
+          title={
+            isEdit
+              ? `Επεξεργασία ${noun === "Εκτίμηση" ? "Εκτίμησης" : "Καταγραφής"}`
+              : `Νέα ${noun}`
+          }
+        />
       }
       onSubmit={handleSubmit}
       saving={saving}

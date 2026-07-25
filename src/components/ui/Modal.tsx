@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
@@ -39,7 +39,7 @@ export function Modal({ open, onClose, title, children, footer, wide }: ModalPro
               <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
                 <Heading
                   slot="title"
-                  className="text-base font-semibold text-gray-900 sm:text-lg"
+                  className="min-w-0 flex-1 text-base font-semibold text-gray-900 sm:text-lg"
                 >
                   {title}
                 </Heading>

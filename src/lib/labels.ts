@@ -13,6 +13,7 @@ import type {
   IssueStatus,
   PhotoCategory,
 } from "@/types";
+import type { IssueState } from "@/types/api";
 
 // ─── Producer ────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,26 @@ export const issueStatusBadge: Record<IssueStatus, string> = {
   RESOLVED: "badge-green",
 };
 
+// Issue `state` as served by the real API (four states).
+export const ISSUE_STATE_ORDER: IssueState[] = [
+  "OPEN",
+  "IN_PROGRESS",
+  "CLOSED",
+  "OBSOLETE",
+];
+export const issueStateLabel: Record<IssueState, string> = {
+  OPEN: "Ανοιχτό",
+  IN_PROGRESS: "Σε εξέλιξη",
+  CLOSED: "Κλειστό",
+  OBSOLETE: "Άκυρο",
+};
+export const issueStateBadge: Record<IssueState, string> = {
+  OPEN: "badge-yellow",
+  IN_PROGRESS: "badge-blue",
+  CLOSED: "badge-green",
+  OBSOLETE: "badge-gray",
+};
+
 // ─── Financials ──────────────────────────────────────────────────────────────
 
 export const transactionTypeLabel: Record<TransactionType, string> = {
@@ -144,20 +165,22 @@ export const photoCategoryLabel: Record<PhotoCategory, string> = {
   PERIODOS_SUGKOMIDIS: "Συγκομιδή",
   OTHER: "Άλλο",
 };
+// Distinct, calm hues per category — deliberately no red/error colors.
 export const photoCategoryBadge: Record<PhotoCategory, string> = {
-  KLADEMA: "badge-gray",
-  ARAIWMA_BLASTOU: "badge-green",
-  ARAIWMA_KARPOU: "badge-blue",
-  KALOKAIRI_NERA: "badge-yellow",
-  PERIODOS_SUGKOMIDIS: "badge-red",
+  KLADEMA: "badge-blue",
+  ARAIWMA_BLASTOU: "badge-teal",
+  ARAIWMA_KARPOU: "badge-green",
+  KALOKAIRI_NERA: "badge-amber",
+  PERIODOS_SUGKOMIDIS: "badge-purple",
   OTHER: "badge-gray",
 };
 
 /**
- * Border color wrapping a photo thumbnail, signalling its issue state:
- * green = no problem, yellow = low/medium problem, red = severe problem.
+ * Border color wrapping a photo thumbnail. A normal photo gets a neutral frame;
+ * only photos documenting a problem are highlighted (amber = low/medium, red =
+ * severe) so issues stand out without every photo looking like a status.
  */
 export function photoIssueBorder(issue?: { severity: IssueSeverity }): string {
-  if (!issue) return "border-green-500";
-  return issue.severity === "HIGH" ? "border-red-500" : "border-yellow-400";
+  if (!issue) return "border-gray-200";
+  return issue.severity === "HIGH" ? "border-red-400" : "border-amber-400";
 }

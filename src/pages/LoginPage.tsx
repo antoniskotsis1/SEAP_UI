@@ -64,8 +64,12 @@ export function LoginPage() {
         <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-gold-400/20 blur-3xl" />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gold-500 text-base font-bold text-white shadow-lg">
-            AG
+          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="Arta Gold"
+              className="h-full w-full object-contain p-1"
+            />
           </div>
           <div>
             <p className="text-lg font-semibold text-white">Arta Gold</p>
@@ -102,17 +106,13 @@ export function LoginPage() {
 
       {/* Form panel */}
       <div className="flex w-full flex-col justify-center px-6 py-12 sm:px-12 lg:w-1/2">
-        <div className="mx-auto w-full max-w-sm">
-          {/* Logo for small screens */}
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gold-500 text-sm font-bold text-white">
-              AG
-            </div>
-            <div>
-              <p className="text-base font-semibold text-gray-900">Arta Gold</p>
-              <p className="text-xs text-gray-500">SEAPP</p>
-            </div>
-          </div>
+        <div className="mx-auto w-full max-w-md">
+          {/* Brand logo */}
+          <img
+            src={`${import.meta.env.BASE_URL}logo.png`}
+            alt="Arta Gold"
+            className="mb-6 h-32 w-auto"
+          />
 
           <h2 className="text-2xl font-bold text-gray-900">Καλώς ήρθατε</h2>
           <p className="mt-1 text-sm text-gray-500">
